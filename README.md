@@ -2,7 +2,7 @@
 https://arborius.online
 
 ### Actions
-- Advancing (moving forward)
+~~- Advancing (moving forward)~~
 - Descending down by `n` tiles
 - Rotating and then descending by `n`
 - Ascending
