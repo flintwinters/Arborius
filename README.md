@@ -8,3 +8,4 @@ https://arborius.online
 - Ascending
 - Attacking down `n` tiles
 - Entering `n` tiles into the top tile in front
+- Using an ability
