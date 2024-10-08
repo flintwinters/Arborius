@@ -6,8 +6,10 @@ https://arborius.online
 - Descending down by `n` tiles
 - Rotating and then descending by `n`
 - Ascending
-- Attacking down `n` tiles
-- Entering `n` tiles into the top tile in front
+- Attacking the top tile directly in front
+- Entering `n` tiles below (from the top)
+- Absorbing `n` tiles below (from the bottom)
+- Leaving a piece as the top tile.
 - Using an ability
 
 ### Lose condition(s)
