@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Refactored Draggable Cards</title>
+    <title>Arborius</title>
     <style>
         /* Custom CSS for the draggable cards */
         body {
@@ -11,10 +11,11 @@
             margin: 0;
             padding: 0;
             overflow: hidden; /* Prevent body scroll during drag */
-            background-color: #1a202c; /* Dark background color */
+            background-color: #342c1d; /* Dark background color */
             position: relative; /* Needed for absolute positioning of cards */
             min-height: 100vh; /* Ensure body takes full viewport height */
             width: 100vw; /* Ensure body takes full viewport width */
+            overflow-y: scroll;
         }
         
         .draggable-card { /* Renamed from .draggable-square */
@@ -179,10 +180,8 @@
         }
         #menu {
             position: absolute;
-            /*background-color: black;*/
             width: 20%;
             height: 100%;
-            border-radius: 0px;
             text-align: center;
             font-family: serif;
             color: black;
@@ -208,10 +207,10 @@
         .list {
             position: absolute;
             margin-top: 40px;
+            max-height: 400px;
             border: 1px solid #ccc;
             display: none;
             z-index: 1000;
-            max-height: 200px;
             overflow-y: auto;
             transform: translateX(34%);
             background: #fff5e5; /* light red */
@@ -228,14 +227,70 @@
         #list:hover {
             display: block;
         }
-        
+
+        #navbar {
+            display: flex;
+            padding: 10px;
+            right: 0;
+            color: black;
+            border-radius: 8px;          /* Rounded corners */
+            background-color: #5b5b5b;   /* Dark red */
+            color: #ffebcd;              /* Light red text */
+            height: 1em;
+            border: 2px solid #ffae17;   /* Light red border */
+            background-color: #2c2311;   /* Dark red */
+        }
+        #newRoomName {
+            background: #333;
+            padding: 10px;
+            right: 0;
+            color: black;
+            border-radius: 8px;          /* Rounded corners */
+            background-color: #5b5b5b;   /* Dark red */
+            color: #ffebcd;              /* Light red text */
+            height: 1em;
+            border: 2px solid #ffae1755;   /* Light red border */
+            background-color: #2c2311;   /* Dark red */
+        }
+        #newRoomButton {
+            background: #333;
+            padding: 10px;
+            right: 0;
+            color: black;
+            border-radius: 8px;          /* Rounded corners */
+            background-color: #5b5b5b;   /* Dark red */
+            color: #ffebcd;              /* Light red text */
+            border: 2px solid #ffae1755;   /* Light red border */
+            background-color: #2c2311;   /* Dark red */
+        }
+        #newRoomName:hover {
+            border: 2px solid #ffae17;   /* Light red border */
+        }
+        #newRoomButton:hover {
+            border: 2px solid #ffae17;   /* Light red border */
+        }
+        .tab {
+            margin-right: 30px;
+            cursor: pointer;
+        }
+        .tab:hover {
+            background-color: #ffae1755;
+        }
     </style>
 </head>
 <body>
+	<!-- <a href="https://arborius.online/discord" style="border: 2px solid white; border-radius: 5px; background: white; margin: 5px;">https://arborius.online/discord</a> -->
     <div id="menu-bar">
+        <div id="navbar"></div>
+        <div style="padding: 10px; background: #ffae1788; border-radius: 8px">
+            <form id="newRoomForm" onsubmit="handleCreateRoom(event)">
+                <input id="newRoomName" placeholder="New room name">
+                <button id="newRoomButton" type="submit">Create Room</button>
+            </form>
+        </div>
+
         <div id="menu">Tiles</div>
         <div id="list" class="list"></div>
-        <!--<span id="menu3"><h2>Option 3</h2></span>-->
     </div>
     <script>
         // Global variables to manage the drag state
@@ -281,19 +336,62 @@
         
         // Variable to store the CSV text
         let csvTextData = "";
-        const csvUrl = "https://arborius.online/cards.csv";
+        let jsonreplacementstext = {};
+        const csvUrl = "https://arborius.online/card/arborius.csv";
         const cardTemplates = {};
         const cardnames = [];
+        function escapeHtml(text) {
+            const map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+            return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+        }
+        // "
+        function showfileText(fileContent, replacements, replace = false) {
+            let ftxt = fileContent;
+        
+            if (!Array.isArray(replacements)) {
+                console.warn("Expected replacements to be an array from the provided JSON string.");
+                replacements = []; // Reset to empty array to prevent further errors
+            }
+    
+            for (const rep of replacements) {
+                // We assume rep is an array like [search_string, replacement_string]
+                const search = rep[0];
+                const replacement = rep[1];
+    
+                if (search[0] !== ',') { // Check if the first character is not a comma
+                    if (search === "adj") {
+                        ftxt = ftxt.replaceAll(search, replacement);
+                    } else if (replacement !== "img") {
+                        ftxt = ftxt.replaceAll(search, `${replacement}`);
+                    } else {
+                        ftxt = ftxt.replaceAll(search, "");
+                    }
+                } else {
+                    ftxt = ftxt.replaceAll(search, replacement);
+                }
+            }
+            return escapeHtml(ftxt);
+        }
+		
         /**
         * Fetches CSV data from the given URL and stores it in csvTextData.
         */
         async function fetchCsvData() {
             try {
                 const response = await fetch(csvUrl);
+                const jsonreplacements = await fetch("https://arborius.online/card/arborius.json");
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
-                csvTextData = await response.text(); // Store raw CSV text
+                const tempcsvTextData = await response.text(); // Store raw CSV text
+                jsonreplacementstext = await jsonreplacements.text();
+                csvTextData = showfileText(tempcsvTextData, JSON.parse(jsonreplacementstext))
                 // Parse CSV data into cardTemplates Map
                 if (csvTextData) {
                     const rows = csvTextData.split('\n').filter(row => row.trim() !== '');
@@ -319,9 +417,9 @@
                 item.onclick = () => {
                     const newcard = processCsvRow(cardTemplates[text]);
                     cardsData.push(newcard);
-                    console.log(newcard);
-                    ws.send(JSON.stringify({ type: 'createcard', data: newcard.stringify() }));
+                    // ws.send(JSON.stringify({ type: 'createcard', data: newcard.stringify() }));
                     renderCards();
+                    updatecardsignal();
                 };
                 tiledropdown.appendChild(item);
             });
@@ -346,7 +444,7 @@
         * @param {boolean} [isGrayedOut=false] - Initial grayed out state.
         * @returns {object} The new card object.
         */
-        function makeCard(typeId, name, cost, borderColor, imgUrl, trigger, ability, gridX, gridY, z, color, rotation = 0, isGrayedOut = false) {
+        function makeCard(typeId, name, cost, borderColor, imgUrl, trigger, ability, gridX, gridY, z, color, rotation = 0, isGrayedOut = false, isMarker = false) {
             const card = {
                 uuid: cardid++, // Unique ID for this specific card instance
                 typeId: typeId, // ID for the card type
@@ -361,6 +459,7 @@
                 z: z,
                 color: color, // Original background color hex
                 isGrayedOut: isGrayedOut, // New property to track grayed-out state
+                isMarker: isMarker, // New property to track grayed-out state
                 rotation: rotation, // New property for rotation in degrees (0, 90, 180, 270)
                 // Temporary pixel coordinates used only during drag for smooth movement
                 // These are not part of the 'permanent' data structure
@@ -414,7 +513,7 @@
             const typeId = 'csv-card'; // Generic typeId for cards loaded from CSV
             const borderColor = COLOR_PURPLE_500; // Default border color
             const gridX = 0; // Default grid X position
-            const gridY = 0; // Default grid Y position
+            const gridY = 2; // Default grid Y position
             const z = 0; // Default Z position
             const color = COLOR_GRAY_700; // Default background color
             
@@ -516,7 +615,14 @@
             
             // Set background color based on isGrayedOut status
             cardElement.style.backgroundColor = cardData.isGrayedOut ? COLOR_GRAY_500 : cardData.color;
+            cardElement.style.opacity = cardData.isMarker ? ".4" : "1"; 
+            cardElement.style.borderColor = cardData.isMarker ? "#0000" : "#fff";
             // cardElement.style.borderColor = cardData.isGrayedOut ? COLOR_GRAY_500 : cardData.borderColor;
+        
+            const bottomInfoDiv = cardElement.querySelector('.card-bottom-info');
+            if (bottomInfoDiv) { bottomInfoDiv.style.display = cardData.isMarker ? 'none' : ''; }
+            const costDiv = cardElement.querySelector('.card-cost');
+            if (costDiv) { costDiv.style.display = cardData.isMarker ? 'none' : ''; }
         }
         
         /**
@@ -547,7 +653,7 @@
                 body.appendChild(div);
             });
         }
-        
+                
         /**
         * Handles the start of a drag operation (mousedown or touchstart).
         * @param {MouseEvent|TouchEvent} e - The event object.
@@ -770,6 +876,13 @@
         draggedStack = [];
     }
     
+    function updatecardsignal() {
+        ws.send(JSON.stringify({
+            type: 'gamestate',
+            count: cardid,
+            data: JSON.stringify(cardsData.map(card => card.stringify()))
+        }));
+    }
     /**
     * Handles the end of a drag operation (mouseup or touchend).
     * Resets the drag state and snaps the card to the grid, updating z-index.
@@ -820,12 +933,6 @@
             resetInteractionState();
             return; // Tap handled, exit endDrag
         }
-        
-        // --- General Drag End Logic (applies to both mouse drags and touch drags) ---
-        // This block executes if a drag was genuinely initiated (isDragging is true)
-        // OR if it was a mouseup (where isTapCandidate is always false, and we want to snap even for clicks).
-        // The `isDragging` flag primarily differentiates touch taps from touch drags.
-        // For mouse, any mousedown followed by mouseup should trigger this.
         
         // Calculate the snapped grid position for the main dragged card
         let snappedGridX = Math.round(draggingCardData.tempPixelX / GRID_SIZE);
@@ -880,12 +987,11 @@
             stackedCardData.z = stackedItem.initialZ + zDifference;
             
             // Send update for each card in the dragged stack
-            if (ws && ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({ type: 'updatecard', data: stackedCardData.stringify() }));
-            }
+            // ws.send(JSON.stringify({ type: 'updatecard', data: stackedCardData.stringify() }));
         });
         
         renderCards(); // Re-render to apply all final positions and Z-indices
+        updatecardsignal();
         
         // Reset all interaction state
         resetInteractionState();
@@ -902,9 +1008,18 @@
             renderCards(); // Re-render to apply the color change
             
             // Send updatecard message
-            if (ws && ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({ type: 'updatecard', data: targetCard.stringify() }));
-            }
+            updatecardsignal();
+        }
+    }
+    
+    function toggleisMarker(cardUuid) {
+        const targetCard = cardsData.find(c => c.uuid == cardUuid); // Use == for lookup
+        if (targetCard) {
+            targetCard.isMarker = !targetCard.isMarker; // Toggle the state
+            renderCards(); // Re-render to apply the color change
+            
+            // Send updatecard message
+            updatecardsignal();
         }
     }
     
@@ -919,9 +1034,7 @@
             renderCards();
             
             // Send updatecard message
-            if (ws && ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({ type: 'updatecard', data: targetCard.stringify() }));
-            }
+            updatecardsignal();
         }
     }
     
@@ -936,9 +1049,7 @@
             renderCards();
             
             // Send updatecard message
-            if (ws && ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({ type: 'updatecard', data: targetCard.stringify() }));
-            }
+            updatecardsignal();
         }
     }
     
@@ -953,10 +1064,17 @@
             
             if (e.key === 'f') {
                 toggleCardGrayState(hoveredCardId); // Toggle gray state
+            } else if (e.key === 'm') {
+                toggleisMarker(hoveredCardId); // Toggle marker state
             } else if (e.key === 'q') {
                 rotateCardCCW(hoveredCardId); // Rotate CCW
             } else if (e.key === 'e') {
                 rotateCardCW(hoveredCardId); // Rotate CW
+            } else if (e.key === 'Backspace' || e.key === 'Delete') {
+                const indexToRemove = cardsData.findIndex(c => c.uuid == hoveredCardId);
+                cardsData.splice(indexToRemove, 1);
+                renderCards();
+                updatecardsignal();
             } else if (e.key === 'r') {
                 // Toggle border color between blue and red
                 if (targetCard.borderColor === COLOR_BLUE_500) {
@@ -969,16 +1087,54 @@
                 renderCards(); // Re-render to apply the color change
                 
                 // Send updatecard message
-                if (ws && ws.readyState === WebSocket.OPEN) {
-                    ws.send(JSON.stringify({ type: 'updatecard', data: targetCard.stringify() }));
-                }
+                updatecardsignal();
             }
         }
     }
     
     // --- WebSocket Client Functionality ---
     let ws = null; // Declare ws globally so it can be accessed by handleWebSocketMessage
-    
+    function showfileText(fileContent, replacements, replace = false) {
+        let ftxt = fileContent;
+        
+        if (!Array.isArray(replacements)) {
+            console.warn("Expected replacements to be an array from the provided JSON string.");
+            replacements = []; // Reset to empty array to prevent further errors
+        }
+        
+        for (const rep of replacements) {
+            // We assume rep is an array like [search_string, replacement_string]
+            const search = rep[0];
+            const replacement = rep[1];
+            
+            if (search[0] !== ',') { // Check if the first character is not a comma
+                if (search === "adj") {
+                    ftxt = ftxt.replaceAll(search, replacement);
+                } else if (replacement !== "img") {
+                    ftxt = ftxt.replaceAll(search, `${replacement}`);
+                } else {
+                    ftxt = ftxt.replaceAll(search, "");
+                }
+            } else {
+                ftxt = ftxt.replaceAll(search, replacement);
+            }
+        }
+        return escapeHtml(ftxt);
+    }
+    function handleCreateRoom(event) {
+        event.preventDefault(); // Prevent form from reloading the page
+        createRoom(); // Call your existing room creation logic
+    }
+    function createRoom() {
+        const name = document.getElementById("newRoomName").value.trim();
+        document.getElementById("newRoomName").value = "";
+        if (name) {
+            ws.send(JSON.stringify({
+                type: "create_room",
+                room: name,
+            }));
+        }
+    }
     /**
     * Parses a card JSON string and re-attaches the stringify method.
     * @param {string} cardJson - The JSON string representation of a card.
@@ -1002,142 +1158,125 @@
     * @param {MessageEvent} event - The WebSocket message event.
     */
     function handleWebSocketMessage(event) {
-        console.log('WebSocket message received:', event.data);
-        try {
-            const message = JSON.parse(event.data);
-            switch (message.type) {
-                case 'sync':
-                console.log('Received sync message:', message);
-                // Respond with a gamestate message
-                if (ws && ws.readyState === WebSocket.OPEN) {
-                    ws.send(JSON.stringify({ type: 'gamestate', count: cardid, data: JSON.stringify(cardsData.map(card => card.stringify()))}));
-                }
-                break;
-                case 'gamestate':
-                console.log('Received gamestate message:', message);
-                // Clear all existing card elements from the DOM
-                document.querySelectorAll('.draggable-card').forEach(el => el.remove());
-                
-                // Update cardsData to match the received cardsData
-                cardsData = JSON.parse(message.data).map(parseCard); // Use the new parseCard function
-                cardid = message.count;
-                // Re-render all the elements with renderCards
-                renderCards();
-                break;
-                case 'updatecard':
-                console.log('Received updatecard message:', message);
-                const updatedCardData = parseCard(message.data); // Use the new parseCard function
-                const targetCardIndex = cardsData.findIndex(c => c.uuid == updatedCardData.uuid); // Use ==
-                
-                if (targetCardIndex !== -1) {
-                    // Update the existing card's properties
-                    cardsData[targetCardIndex] = updatedCardData;
-                    renderCards(); // Re-render to reflect the changes
-                } else {
-                    console.warn('Received update for unknown card:', updatedCardData.uuid);
-                }
-                break;
-                case 'createcard':
-                console.log('Received createcard message:', message);
-                const newCardProps = parseCard(message.data); // Use parseCard for incoming data
-                // Create a new card object using the makeCard factory function
-                const newCard = makeCard(
-                newCardProps.typeId,
-                newCardProps.name,
-                newCardProps.cost,
-                newCardProps.borderColor,
-                newCardProps.imgUrl,
-                newCardProps.trigger,
-                newCardProps.ability,
-                newCardProps.gridX,
-                newCardProps.gridY,
-                newCardProps.z,
-                newCardProps.color,
-                newCardProps.rotation, // Pass rotation
-                newCardProps.isGrayedOut // Pass isGrayedOut
-                );
-                cardsData.push(newCard); // Add the new card to the array
-                renderCards(); // Re-render to display the new card
-                break;
-                case 'destroycard':
-                console.log('Received destroycard message:', message);
-                const destroyedCardUuid = message.data; // Assuming message.data is just the UUID string
-                const indexToRemove = cardsData.findIndex(c => c.uuid == destroyedCardUuid); // Use ==
-                
-                if (indexToRemove !== -1) {
-                    cardsData.splice(indexToRemove, 1); // Remove the card from the array
-                    renderCards(); // Re-render to update the display
-                } else {
-                    console.warn('Received destroy for unknown card UUID:', destroyedCardUuid);
-                }
-                break;
-                default:
-                console.warn('Received unknown message type:', message.type, message);
-            }
-        } catch (error) {
-            console.error('Error parsing WebSocket message:', error, event.data);
+        const message = JSON.parse(event.data);
+        if (message.type === 'gamestate') {
+            console.log('Received gamestate message');
+            document.querySelectorAll('.draggable-card').forEach(el => el.remove());
+            cardsData = JSON.parse(message.data).map(parseCard);
+            cardid = message.count;
+            renderCards();
+        } else if (message.type === 'createcard') {
+            console.log('Received createcard message:', message);
+            const newCardProps = parseCard(message.data);
+            const newCard = makeCard(
+            newCardProps.typeId,
+            newCardProps.name,
+            newCardProps.cost,
+            newCardProps.borderColor,
+            newCardProps.imgUrl,
+            newCardProps.trigger,
+            newCardProps.ability,
+            newCardProps.gridX,
+            newCardProps.gridY,
+            newCardProps.z,
+            newCardProps.color,
+            newCardProps.rotation,
+            newCardProps.isGrayedOut
+            );
+            cardsData.push(newCard);
+            renderCards();
+        } else if (message.type === 'destroycard') {
+            const destroyedCardUuid = message.data;
+            const indexToRemove = cardsData.findIndex(c => c.uuid == destroyedCardUuid);
+            cardsData.splice(indexToRemove, 1);
+            renderCards();
+        } else if (message.type === "rooms") {
+            const navbar = document.getElementById("navbar");
+            navbar.innerHTML = "";
+            message.rooms.forEach(room => {
+                const tab = document.createElement("div");
+                tab.className = "tab";
+                tab.textContent = room.name;
+                tab.onclick = () => {
+                    ws.send(JSON.stringify({ type: "sync", room: room.name }));
+                };
+                navbar.appendChild(tab);
+            });
+        } else if (message.type === "room_created") {
+            ws.send(JSON.stringify({ type: "get_rooms" }));
         }
     }
     // --- End WebSocket Client Functionality ---
     
+    let reconnectTimeout = 1000;
+
+    setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: "ping" }));
+        }
+    }, 20000);
     
+    function connectWebSocket() {
+        ws = new WebSocket("wss://arborius.online");
+
+        ws.onopen = () => {
+            console.log("WebSocket connected");
+            ws.send(JSON.stringify({ type: "get_rooms" }));
+        };
+
+        ws.onmessage = handleWebSocketMessage
+
+        ws.onclose = (event) => {
+            console.warn("WebSocket closed:", event.code, event.reason);
+        };
+
+        ws.onerror = (err) => {
+            console.error("WebSocket error:", err);
+            ws.close();
+        };
+    }
+
+    function attemptReconnect() {
+    setTimeout(() => {
+        console.log("Reconnecting WebSocket...");
+        connectWebSocket();
+    }, reconnectTimeout);
+    reconnectTimeout = Math.min(reconnectTimeout * 2, 30000); // exponential backoff
+    }
+
+    connectWebSocket();
+
     // Initialize the application when the window loads
     window.onload = async function() {
         await fetchCsvData(); // Fetch CSV data before rendering cards
         
-        // Clear initial placeholder cards
-        // cardsData = [];
-        
-        // // Process CSV data and populate cardsData
-        // if (csvTextData) {
-        //     const rows = csvTextData.split('\n').filter(row => row.trim() !== '');
-        //     // Assuming the first row is a header and should be skipped
-        //     const dataRows = rows.slice(1); // Skip header row
-            
-        //     let currentX = 0;
-        //     let currentY = 0;
-        //     const cardsPerRow = 5; // Adjust as needed for layout
-            
-        //     dataRows.forEach((row, index) => {
-        //         const card = processCsvRow(row);
-        //         if (card) {
-        //             // Assign grid positions to new cards from CSV
-        //             card.gridX = currentX;
-        //             card.gridY = currentY+1;
-        //             card.z = 0; // Default Z for new cards
-                    
-        //             cardsData.push(card);
-                    
-        //             currentX++;
-        //             if (currentX >= cardsPerRow) {
-        //                 currentX = 0;
-        //                 currentY++;
-        //             }
-        //         }
-        //     });
-        // }
-        
-        
         renderCards(); // Render cards on page load
         
-        // --- Simple WebSocket Client Initialization ---
-        const websocketUrl = 'wss://arborius.online'; // Replace with your WebSocket server URL
-        ws = new WebSocket(websocketUrl); // Assign to global ws variable
+        connectWebSocket();
+        // // --- Simple WebSocket Client Initialization ---
+        // const websocketUrl = 'wss://arborius.online'; // Replace with your WebSocket server URL
+        // ws = new WebSocket(websocketUrl); // Assign to global ws variable
         
-        ws.onopen = (event) => {
-            console.log('WebSocket connection opened:', event);
-            ws.send(JSON.stringify({ type: "sync" })); // Send a single message
-        };
+        // ws.onopen = (event) => {
+        //     console.log('WebSocket connection opened:', event);
+        //     ws.send(JSON.stringify({ type: "get_rooms" }));
+        // };
         
-        ws.onmessage = handleWebSocketMessage; // Assign the new handler function
+        // ws.onmessage = handleWebSocketMessage; // Assign the new handler function
         
-        ws.onerror = (error) => {
-            console.error('WebSocket error:', error);
-        };
-        
-        ws.onclose = (event) => {
-            console.log('WebSocket connection closed:', event);
-        };
+        // ws.onerror = (error) => {
+        //     console.error('WebSocket error:', error);
+        // };
+        // function attemptReconnect() {
+        // setTimeout(() => {
+        //     console.log("Reconnecting WebSocket...");
+        //     connectWebSocket();
+        // }, reconnectTimeout);
+        // reconnectTimeout = Math.min(reconnectTimeout * 2, 30000); // exponential backoff
+        // }
+        // ws.onclose = (event) => {
+        //     console.log('WebSocket connection closed:', event);
+        // };
         // --- End WebSocket Client Initialization ---
         
         
@@ -1152,6 +1291,6 @@
         // Attach keydown event listener for toggling color and rotation
         window.addEventListener('keydown', handleKeyPress);
     };
-</script>
+    </script>
 </body>
 </html>
