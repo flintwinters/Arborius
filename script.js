@@ -554,7 +554,48 @@ function handleGlobalMouseDown(e) {
         isBackgroundDragging = true;
         lastBackgroundDragX = e.clientX;
         lastBackgroundDragY = e.clientY;
-        document.body.style.userSelect = 'none'; // Disable text selection
+    }
+}
+
+/**
+ * Global handler for mouse/touch move events.
+ * Updates the position of either the dragging card or the view offset.
+ * @param {MouseEvent|TouchEvent} e - The event object.
+ */
+/**
+ * Global handler for mouse/touch down events. Determines if it's a card drag or background pan.
+ * @param {MouseEvent|TouchEvent} e - The event object.
+ */
+function handleGlobalMouseDown(e) {
+    // Check if the event target is within any UI element that should have normal behavior
+    const isUIElement = e.target.closest('#menu-bar') || 
+                       e.target.closest('input') || 
+                       e.target.closest('button') || 
+                       e.target.closest('form') ||
+                       e.target.closest('.tab') ||
+                       e.target.tagName === 'INPUT' ||
+                       e.target.tagName === 'BUTTON' ||
+                       e.target.tagName === 'SELECT' ||
+                       e.target.tagName === 'TEXTAREA';
+    
+    // If clicking on UI elements, don't interfere - let default behavior happen
+    if (isUIElement) {
+        return;
+    }
+    
+    const targetCard = e.target.closest('.draggable-card');
+    
+    if (targetCard) {
+        // Clicked on a card, initiate card drag
+        startCardDrag(e);
+    } else {
+        // Clicked on the background, initiate background pan
+        isBackgroundDragging = true;
+        const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+        const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+        lastBackgroundDragX = clientX;
+        lastBackgroundDragY = clientY;
+        document.body.style.userSelect = 'none'; // Disable text selection only during background drag
         e.preventDefault(); // Prevent default browser drag behavior on background
     }
 }
@@ -565,9 +606,14 @@ function handleGlobalMouseDown(e) {
  * @param {MouseEvent|TouchEvent} e - The event object.
  */
 function handleGlobalMouseMove(e) {
+    // Only handle movement if we're actually dragging something
+    if (!isBackgroundDragging && !draggingCardElement) {
+        return;
+    }
+    
     if (isBackgroundDragging) {
-        const currentMouseX = e.clientX;
-        const currentMouseY = e.clientY;
+        const currentMouseX = e.clientX || (e.touches && e.touches[0].clientX);
+        const currentMouseY = e.clientY || (e.touches && e.touches[0].clientY);
 
         const deltaX = currentMouseX - lastBackgroundDragX;
         const deltaY = currentMouseY - lastBackgroundDragY;
@@ -611,10 +657,6 @@ function handleGlobalMouseMove(e) {
         let newDisplayedX = clientX - offsetX;
         let newDisplayedY = clientY - offsetY;
 
-        // No clamping applied here, allowing cards to move off-screen
-        // newDisplayedX = Math.max(0, Math.min(newDisplayedX, windowWidth - (CARD_SIZE * visualScale)));
-        // newDisplayedY = Math.max(0, Math.min(newDisplayedY, windowHeight - (CARD_SIZE * visualScale)));
-
         // Update main card's DOM element position immediately for smooth visual drag
         draggingCardElement.style.left = `${newDisplayedX}px`;
         draggingCardElement.style.top = `${newDisplayedY}px`;
@@ -640,14 +682,10 @@ function handleGlobalMouseMove(e) {
             let newStackedWorldY = stackedItem.initialPixelY + deltaWorldY;
 
             // Apply new position to stacked card's DOM element, converting world to display
-            // No clamping applied here, allowing cards to move off-screen
             let newStackedDisplayedX = newStackedWorldX - (stackedCardData.z * Z_OFFSET_DISPLAY) + viewOffsetX;
             let newStackedDisplayedY = newStackedWorldY - (stackedCardData.z * Z_OFFSET_DISPLAY) + viewOffsetY;
 
-            // newStackedDisplayedX = Math.max(0, Math.min(newStackedDisplayedX, windowWidth - (CARD_SIZE * visualScale)));
-            // newStackedDisplayedY = Math.max(0, Math.min(newStackedDisplayedY, windowHeight - (CARD_SIZE * visualScale)));
-
-            stackedCardData.tempPixelX = newStackedDisplayedX - viewOffsetX + (stackedCardData.z * Z_OFFSET_DISPLAY); // Update tempPixelX/Y for stacked
+            stackedCardData.tempPixelX = newStackedDisplayedX - viewOffsetX + (stackedCardData.z * Z_OFFSET_DISPLAY);
             stackedCardData.tempPixelY = newStackedDisplayedY - viewOffsetY + (stackedCardData.z * Z_OFFSET_DISPLAY);
 
             stackedElement.style.left = `${newStackedDisplayedX}px`;
@@ -718,12 +756,6 @@ function handleGlobalMouseUp(e) {
     
     let snappedPixelX = snappedGridX * gridSize;
     let snappedPixelY = snappedGridY * gridSize;
-    
-    // No clamping applied here, allowing gridX and gridY to take any integer value
-    // const windowWidth = window.innerWidth;
-    // const windowHeight = window.innerHeight;
-    // snappedPixelX = Math.max(0, Math.min(snappedPixelX, windowWidth - CARD_SIZE));
-    // snappedPixelY = Math.max(0, Math.min(snappedPixelY, windowHeight - CARD_SIZE));
     
     // Update main card's grid position
     draggingCardData.gridX = Math.round(snappedPixelX / gridSize);
