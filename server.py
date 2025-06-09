@@ -176,8 +176,8 @@ async def handler(websocket, path):
             await room.removeClient(websocket)
             # If no more clients in the room, you might want to remove the room object
             if not room.clients:
-                print(f"Room '{roomName}' is now empty. Considering removing it from activeRooms.")
-                # del activeRooms[roomName] # Uncomment if you want to remove empty rooms from memory
+                # print(f"Room '{roomName}' is now empty. Considering removing it from activeRooms.")
+                del activeRooms[roomName] # Uncomment if you want to remove empty rooms from memory
 
 startServer = websockets.serve(handler, "0.0.0.0", 8764)
 
