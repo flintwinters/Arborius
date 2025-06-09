@@ -625,7 +625,7 @@ function handleGlobalMouseMove(e) {
         lastBackgroundDragY = currentMouseY;
 
         renderCards(); // Re-render all cards with the new view offset
-        e.preventDefault(); // Prevent default browser scrolling
+        // e.preventDefault(); // Prevent default browser scrolling
     } else if (draggingCardElement) { // If a card is being dragged
         // Clear long press timer if movement occurs during potential tap/drag
         if (longPressTimer) {
