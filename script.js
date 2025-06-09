@@ -1034,6 +1034,16 @@ function connectWebSocket() {
         console.log("WebSocket connected");
         reconnectTimeout = 1000; // Reset reconnect timeout on successful connection
         ws.send(JSON.stringify({ type: "get_rooms" }));
+        const queryString = window.location.search;
+
+        // Create a URLSearchParams object from the query string
+        const urlParams = new URLSearchParams(queryString);
+    
+        // Check if the 'room' parameter exists
+        if (urlParams.has('room')) {
+            const roomValue = urlParams.get('room');
+            ws.send(JSON.stringify({ type: "sync", room: roomValue }));
+        }
     };
     
     ws.onmessage = handleWebSocketMessage;
@@ -1061,7 +1071,7 @@ function attemptReconnect() {
 window.onload = async function() {
     await fetchCardData(); // Fetch CSV data before rendering cards
     renderCards(); // Initial render of cards
-    
+
     connectWebSocket(); // Establish WebSocket connection
 
     // Attach global event listeners to the window for mouse/touch input
