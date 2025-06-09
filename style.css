@@ -1,0 +1,269 @@
+body {
+    font-family: "Inter", sans-serif;
+    margin: 0;
+    padding: 0;
+    overflow: hidden; /* Prevent body scroll during drag */
+    background-color: #342c1d; /* Dark background color */
+    position: relative; /* Needed for absolute positioning of cards */
+    min-height: 100vh; /* Ensure body takes full viewport height */
+    width: 100vw; /* Ensure body takes full viewport width */
+    overflow-y: scroll;
+}
+
+.draggable-card { /* Renamed from .draggable-square */
+    position: absolute;
+    width: 120px; /* Equivalent to w-24 */
+    height: 120px; /* Equivalent to h-24 */
+    border-radius: 0.125rem; /* Equivalent to rounded-lg */
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); /* Equivalent to shadow-xl */
+    cursor: grab; /* Equivalent to cursor-grab */
+    display: flex; /* Equivalent to flex */
+    align-items: center; /* Equivalent to items-center */
+    justify-content: center; /* Equivalent to justify-center */
+    color: white; /* Equivalent to text-white */
+    font-size: 1.25rem; /* Equivalent to text-xl */
+    font-weight: 700; /* Equivalent to font-bold */
+    transition: box-shadow 0.15s ease-in-out, transform 0.15s ease-in-out;
+    touch-action: none; /* Prevent default touch actions like scrolling/zooming */
+    border-style: solid; /* Added for border color */
+    box-sizing: border-box; /* Include padding and border in the element's total width and height */
+    overflow: hidden; /* Crucial for absolute positioning of image */
+}
+
+.draggable-card.dragging {
+    cursor: grabbing;
+    /* z-index is set to 1000 in JS during drag */
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); /* Larger shadow */
+}
+
+.card-content {
+    position: relative; /* Establish stacking context */
+    z-index: 2; /* Ensure it's above the image and overlay */
+    display: flex;
+    flex-direction: column;
+    align-items: center; /* Keep this for horizontal centering of name/bottom-info */
+    justify-content: space-between; /* Distribute space between elements */
+    width: 100%;
+    height: 100%;
+    padding: 0 0.25rem 0.25rem 0.25rem; /* Removed top padding, kept side/bottom */
+}
+
+.card-image {
+    position: absolute; /* Take out of flow */
+    top: 0;
+    left: 0;
+    width: 100%; /* Fill parent */
+    height: 100%; /* Fill parent */
+    object-fit: cover; /* Cover the area, cropping if necessary */
+    border-radius: 0.125rem; /* Match parent border-radius */
+    z-index: 0; /* Background layer */
+}
+
+.card-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: transparent; /* Make it transparent */
+    z-index: 1; /* Above image, below content */
+}
+
+.card-name {
+    font-size: 0.75rem; /* Smaller font for name (12px) */
+    font-weight: bold;
+    color: white;
+    text-align: center;
+    margin-bottom: 0; /* No explicit margin-bottom, flexbox handles spacing */
+    flex-shrink: 0;
+    /* z-index: 1; This is handled by parent .card-content z-index */
+}
+
+.card-cost {
+    position: absolute;
+    top: 0.125rem; /* Small padding from top */
+    right: 0.125rem; /* Small padding from right */
+    font-size: 0.7rem; /* Slightly smaller than name */
+    font-weight: bold;
+    color: white;
+    background-color: #000; /* Semi-transparent black background */
+    border-radius: 50%; /* Circular shape */
+    width: 1rem; /* Fixed width for circle */
+    height: 1rem; /* Fixed height for circle */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 3; /* Above overlay and image, below content */
+    border: 1px solid rgba(255, 255, 255, 0.5); /* White border for definition */
+}
+
+
+/* Container for trigger/ability row */
+.card-bottom-info {
+    display: flex;
+    align-items: center;
+    justify-content: center; /* Center the trigger/ability block */
+    width: 100%; /* Take full width */
+    flex-wrap: wrap; /* Changed from nowrap to wrap */
+    flex-shrink: 0;
+    margin-top: auto; /* Pushes this block to the bottom in flex column */
+}
+
+.trigger {
+    display: flex;
+    min-height: 1rem; /* 1.35rem * 0.9 */
+    text-align: center;
+    align-items: center;
+    font-family: monospace;
+    font-weight: 900;
+    margin-left: 0.05625rem; /* 1mm ~ 1px */
+    font-size: 0.54rem; /* 0.6rem * 0.9 */
+    line-height: 1.25;
+    background-color: #aaa;
+    border: 1px solid rgba(0, 0, 0);
+    border-right: 0;
+    border-radius: 0.225rem 0.225rem 0.225rem 0.225rem; /* 0.25rem * 0.9 */
+    padding: 0; /* Reduced vertical padding */
+    word-break: break-word; /* Ensure long words break */
+    z-index: 4;
+    color: black;
+}
+
+.triggerarrow {
+    width: 0;
+    height: 0;
+    border-style: solid;
+    flex-shrink: 0;
+}
+
+.triggerarrow {
+    border-width: 0.39375rem 0.39375rem 0.39375rem 0.2rem; /* 0.625rem * 0.9, 0.4375rem * 0.9 */
+    border-color: transparent transparent transparent #aaa;
+    z-index: 2;
+    margin-right: -0.05625rem; /* 0.0625rem * 0.9 */
+}
+
+.ability {
+    display: flex;
+    min-height: 1rem; /* 1.35rem * 0.9 */
+    align-items: center;
+    text-align: center;
+    font-family: monospace;
+    font-weight: 900;
+    margin-left: -0.5rem; /* -1rem * 0.9 */
+    padding: 0 0 0 .25rem; /* Reduced vertical padding */
+    font-size: 0.54rem; /* 0.6rem * 0.9 */
+    line-height: 1.25;
+    background-color: rgba(238, 238, 238);
+    border: 1px solid rgba(0, 0, 0);
+    border-left: 0;
+    border-radius: 0.225rem 0.225rem 0.225rem 0.225rem; /* 0.25rem * 0.9 */
+    word-break: break-word; /* Ensure long words break */
+    z-index: 0;
+    color: black;
+}
+#menu-bar {
+    position: absolute;
+    /*background-color: black;*/
+    width: 50%;
+    margin: auto;
+    /*height: 10%;*/
+}
+#menu {
+    position: absolute;
+    width: 20%;
+    height: 100%;
+    text-align: center;
+    font-family: serif;
+    color: black;
+    border-radius: 8px;          /* Rounded corners */
+    padding: 10px;
+    background-color: #5b5b5b;   /* Dark red */
+    color: #ffebcd;              /* Light red text */
+    height: 1em;
+    margin: 5px;
+    border: 2px solid #ffae17;   /* Light red border */
+    background-color: #2c2311;   /* Dark red */
+}
+#menu:hover {
+    background-color: #0004;
+}
+#hover-target {
+    display: inline-block;
+    padding: 10px;
+    background-color: #0008;
+    color: white;
+    cursor: pointer;
+}
+.list {
+    position: absolute;
+    margin-top: 40px;
+    max-height: 400px;
+    border: 1px solid #ccc;
+    display: none;
+    z-index: 1000;
+    overflow-y: auto;
+    transform: translateX(34%);
+    background: #fff5e5; /* light red */
+}
+
+#list div {
+    padding: 8px 12px;
+    cursor: pointer;
+}
+#list div:hover  {
+    background-color: #f0f0f0;
+}
+#menu:hover + #list,
+#list:hover {
+    display: block;
+}
+
+#navbar {
+    display: flex;
+    padding: 10px;
+    right: 0;
+    color: black;
+    border-radius: 8px;          /* Rounded corners */
+    background-color: #5b5b5b;   /* Dark red */
+    color: #ffebcd;              /* Light red text */
+    height: 1em;
+    border: 2px solid #ffae17;   /* Light red border */
+    background-color: #2c2311;   /* Dark red */
+}
+#newRoomName {
+    background: #333;
+    padding: 10px;
+    right: 0;
+    color: black;
+    border-radius: 8px;          /* Rounded corners */
+    background-color: #5b5b5b;   /* Dark red */
+    color: #ffebcd;              /* Light red text */
+    height: 1em;
+    border: 2px solid #ffae1755;   /* Light red border */
+    background-color: #2c2311;   /* Dark red */
+}
+#newRoomButton {
+    background: #333;
+    padding: 10px;
+    right: 0;
+    color: black;
+    border-radius: 8px;          /* Rounded corners */
+    background-color: #5b5b5b;   /* Dark red */
+    color: #ffebcd;              /* Light red text */
+    border: 2px solid #ffae1755;   /* Light red border */
+    background-color: #2c2311;   /* Dark red */
+}
+#newRoomName:hover {
+    border: 2px solid #ffae17;   /* Light red border */
+}
+#newRoomButton:hover {
+    border: 2px solid #ffae17;   /* Light red border */
+}
+.tab {
+    margin-right: 30px;
+    cursor: pointer;
+}
+.tab:hover {
+    background-color: #ffae1755;
+}
