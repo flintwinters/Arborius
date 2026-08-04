@@ -41,6 +41,7 @@ export class BoardView {
   private readonly raycaster = new THREE.Raycaster();
   private readonly pointer = new THREE.Vector2();
   private readonly cells = new THREE.Group();
+  private readonly ghost = new THREE.Group();
   private readonly targets: THREE.Mesh[] = [];
   private readonly ground = new THREE.Mesh(
     new THREE.PlaneGeometry(1, 1),
@@ -50,6 +51,7 @@ export class BoardView {
   private selected: BoardCoordinate | null = null;
   private selectedCount = 0;
   private interaction: PointerInteraction | null = null;
+  private state: GameState | null = null;
 
   constructor(
     private readonly host: HTMLElement,
@@ -63,7 +65,7 @@ export class BoardView {
     this.scene.background = new THREE.Color(0x1d2021);
     this.ground.rotation.x = -Math.PI / 2;
     this.ground.position.y = -0.02;
-    this.scene.add(this.ground, this.cells);
+    this.scene.add(this.ground, this.cells, this.ghost);
     this.targets.push(this.ground);
     this.camera.position.set(9.5, 11.5, 12.5);
     this.camera.lookAt(0, 0, 0);
@@ -85,6 +87,7 @@ export class BoardView {
     this.scene.add(ambient, key);
 
     this.renderer.domElement.addEventListener("pointerdown", (event) => this.handlePointerDown(event));
+    this.renderer.domElement.addEventListener("pointermove", (event) => this.handlePointerMove(event));
     this.renderer.domElement.addEventListener("pointercancel", () => this.cancelInteraction());
     this.renderer.domElement.addEventListener("pointerup", (event) => this.handlePointerUp(event));
     new ResizeObserver(() => this.resize()).observe(this.host);
@@ -97,6 +100,7 @@ export class BoardView {
   }
 
   update(state: GameState): void {
+    this.state = state;
     this.cells.clear();
     this.targets.length = 1;
     this.updateField(state.board);
@@ -210,7 +214,19 @@ export class BoardView {
       this.controls.enabled = false;
       this.renderer.domElement.setPointerCapture(event.pointerId);
       this.onCell(selection, count);
+      this.createGhost(selection);
+      this.positionGhost(selection);
     }
+  }
+
+  private handlePointerMove(event: PointerEvent): void {
+    if (!this.interaction?.selection) return;
+    const hit = this.pick(event);
+    if (!hit) {
+      this.ghost.visible = false;
+      return;
+    }
+    this.positionGhost(this.coordinateForHit(hit), hit.point);
   }
 
   private handlePointerUp(event: PointerEvent): void {
@@ -244,9 +260,66 @@ export class BoardView {
   private cancelInteraction(pointerId?: number): void {
     this.interaction = null;
     this.controls.enabled = true;
+    this.clearGhost();
     if (pointerId !== undefined && this.renderer.domElement.hasPointerCapture(pointerId)) {
       this.renderer.domElement.releasePointerCapture(pointerId);
     }
+  }
+
+  private createGhost(selection: StackSelection): void {
+    this.clearGhost();
+    const stack = this.state?.board.find(
+      (cell) => cell.q === selection.q && cell.r === selection.r,
+    )?.stack;
+    if (!stack) return;
+
+    stack.slice(-selection.count).forEach((player, index) => {
+      const tile = new THREE.Mesh(
+        new THREE.BoxGeometry(CELL_SIZE * 0.76, TILE_HEIGHT, CELL_SIZE * 0.76),
+        new THREE.MeshStandardMaterial({
+          color: COLORS[player],
+          transparent: true,
+          opacity: 0.48,
+          depthWrite: false,
+          roughness: 0.35,
+          metalness: 0.08,
+        }),
+      );
+      tile.position.y = TILE_HEIGHT * (index + 0.5);
+      this.ghost.add(tile);
+    });
+  }
+
+  private positionGhost(destination: BoardCoordinate, pointer?: THREE.Vector3): void {
+    let destinationHeight = this.state?.board.find(
+      (cell) => cell.q === destination.q && cell.r === destination.r,
+    )?.stack.length ?? 0;
+    const source = this.interaction?.selection;
+    if (source?.q === destination.q && source.r === destination.r) {
+      destinationHeight -= source.count;
+    }
+    const position = worldPosition(destination.q, destination.r);
+    this.ghost.position.set(
+      pointer?.x ?? position.x,
+      0.14 + destinationHeight * TILE_HEIGHT,
+      pointer?.z ?? position.z,
+    );
+    this.ghost.visible = true;
+    this.render();
+  }
+
+  private clearGhost(): void {
+    this.ghost.children.forEach((child) => {
+      if (!(child instanceof THREE.Mesh)) return;
+      child.geometry.dispose();
+      if (Array.isArray(child.material)) {
+        child.material.forEach((material) => material.dispose());
+      } else {
+        child.material.dispose();
+      }
+    });
+    this.ghost.clear();
+    this.ghost.visible = false;
   }
 
   private resize(): void {
