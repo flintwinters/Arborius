@@ -34,7 +34,7 @@ def bootstrap() -> None:
 @app.command()
 def test() -> None:
     """Run the permanent Python test suite."""
-    run(["uv", "run", "pytest"])
+    run(["uv", "run", "python", "-m", "pytest"])
 
 
 @app.command()
