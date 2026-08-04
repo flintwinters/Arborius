@@ -10,7 +10,16 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel, ConfigDict, Field
 
-from server.game import Game, GameRuleError, MoveAction, PlaceAction, Player
+from server.game import (
+    Facing,
+    Game,
+    GameRuleError,
+    MoveAction,
+    PlaceAction,
+    Player,
+    RotateAction,
+    UnplayAction,
+)
 
 
 class PlaceRequest(BaseModel):
@@ -18,8 +27,10 @@ class PlaceRequest(BaseModel):
 
     type: Literal["place"]
     player: Player
+    tile_id: str
     q: int
     r: int
+    facing: Facing
 
 
 class MoveRequest(BaseModel):
@@ -34,7 +45,29 @@ class MoveRequest(BaseModel):
     count: int
 
 
-ActionRequest = Annotated[PlaceRequest | MoveRequest, Field(discriminator="type")]
+class RotateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["rotate"]
+    player: Player
+    q: int
+    r: int
+    quarter_turns: int
+    whole_stack: bool = False
+
+
+class UnplayRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["unplay"]
+    player: Player
+    q: int
+    r: int
+
+
+ActionRequest = Annotated[
+    PlaceRequest | MoveRequest | RotateRequest | UnplayRequest, Field(discriminator="type")
+]
 
 app = FastAPI(title="Arborius", version="0.1.0")
 game = Game()
@@ -55,13 +88,17 @@ async def reset_game() -> dict[str, object]:
 @app.post("/api/game/actions")
 async def take_action(request: ActionRequest) -> dict[str, object]:
     if isinstance(request, PlaceRequest):
-        action = PlaceAction(request.q, request.r)
-    else:
+        action = PlaceAction(request.tile_id, request.q, request.r, request.facing)
+    elif isinstance(request, MoveRequest):
         action = MoveAction(
             (request.from_q, request.from_r),
             (request.to_q, request.to_r),
             request.count,
         )
+    elif isinstance(request, RotateRequest):
+        action = RotateAction(request.q, request.r, request.quarter_turns, request.whole_stack)
+    else:
+        action = UnplayAction(request.q, request.r)
     try:
         game.apply(request.player, action)
     except GameRuleError as error:

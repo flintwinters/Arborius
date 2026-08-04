@@ -1,173 +1,175 @@
 import pytest
 
 from server.game import (
-    MAX_HEIGHT,
+    Facing,
     Game,
     GameRuleError,
     MoveAction,
     PlaceAction,
     Player,
+    RotateAction,
+    Tile,
+    UnplayAction,
 )
 
 
-def test_place_consumes_reserve_and_changes_turn() -> None:
+def tile(
+    identifier: str, owner: Player, facing: Facing = Facing.NORTH, *, frozen: bool = False
+) -> Tile:
+    return Tile(identifier, identifier.split("-")[-1], owner, facing, frozen)
+
+
+def test_starting_armies_are_unique_named_tiles() -> None:
     game = Game()
-    game.apply(Player.AMBER, PlaceAction(0, 0))
-    assert game.board[(0, 0)] == [Player.AMBER]
-    assert game.reserves[Player.AMBER] == 17
-    assert game.turn is Player.TEAL
+    expected = {"horse", "vagrant", "castle", "soldier", "demon", "sword", "viking", "goar"}
+    assert {item.name for item in game.reserves[Player.AMBER]} == expected
+    assert {item.name for item in game.reserves[Player.TEAL]} == expected
+    assert len({item.id for reserve in game.reserves.values() for item in reserve}) == 16
 
 
-@pytest.mark.parametrize("coord", [(10**9, -(10**9)), (-(10**12), 10**12)])
-def test_can_place_at_arbitrary_integer_coordinates(coord: tuple[int, int]) -> None:
+def test_opening_places_center_then_diagonal_with_opposite_facing() -> None:
     game = Game()
-    game.apply(Player.AMBER, PlaceAction(*coord))
-    assert game.board[coord] == [Player.AMBER]
-
-
-def test_rejects_wrong_turn_occupied_cell_and_empty_reserve() -> None:
-    game = Game()
-    with pytest.raises(GameRuleError, match="amber's turn"):
-        game.apply(Player.TEAL, PlaceAction(0, 0))
-    game.apply(Player.AMBER, PlaceAction(0, 0))
-    with pytest.raises(GameRuleError, match="empty"):
-        game.apply(Player.TEAL, PlaceAction(0, 0))
-    game.reserves[Player.TEAL] = 0
-    with pytest.raises(GameRuleError, match="no stones"):
-        game.apply(Player.TEAL, PlaceAction(1, 0))
-
-
-def test_move_top_stones_as_ordered_unit() -> None:
-    game = Game(
-        board={(0, 0): [Player.TEAL, Player.AMBER, Player.TEAL, Player.AMBER]},
-        turn=Player.AMBER,
-    )
-    game.apply(Player.AMBER, MoveAction((0, 0), (1, 0), 3))
-    assert game.board[(0, 0)] == [Player.TEAL]
-    assert game.board[(1, 0)] == [Player.AMBER, Player.TEAL, Player.AMBER]
-
-
-def test_move_can_capture_control_by_covering_a_stack() -> None:
-    game = Game(
-        board={(0, 0): [Player.AMBER], (1, 0): [Player.TEAL]},
-        turn=Player.AMBER,
-    )
-    game.apply(Player.AMBER, MoveAction((0, 0), (1, 0), 1))
-    assert game.board[(1, 0)] == [Player.TEAL, Player.AMBER]
-
-
-def test_move_has_no_artificial_edge() -> None:
-    source = (10**12, -(10**12))
-    destination = (source[0] + 1, source[1])
-    game = Game(board={source: [Player.AMBER]}, turn=Player.AMBER)
-    game.apply(Player.AMBER, MoveAction(source, destination, 1))
-    assert game.board == {destination: [Player.AMBER]}
+    game.apply(Player.AMBER, PlaceAction("amber-horse", 0, 0, Facing.EAST))
+    game.apply(Player.TEAL, PlaceAction("teal-goar", 1, 1, Facing.WEST))
+    assert game.board[(0, 0)][-1] == tile("amber-horse", Player.AMBER, Facing.EAST)
+    assert game.board[(1, 1)][-1] == tile("teal-goar", Player.TEAL, Facing.WEST)
+    assert len(game.reserves[Player.AMBER]) == 7
 
 
 @pytest.mark.parametrize(
     ("action", "message"),
     [
-        (MoveAction((0, 0), (2, 0), 1), "adjacent"),
-        (MoveAction((0, 0), (1, -1), 1), "adjacent"),
-        (MoveAction((1, 0), (0, 0), 1), "empty"),
-        (MoveAction((0, 0), (1, 0), 0), "between"),
-        (MoveAction((0, 0), (1, 0), 2), "more stones"),
+        (PlaceAction("amber-horse", 1, 0, Facing.NORTH), "center"),
+        (PlaceAction("missing", 0, 0, Facing.NORTH), "not in"),
     ],
 )
-def test_rejects_illegal_moves(action: MoveAction, message: str) -> None:
-    game = Game(board={(0, 0): [Player.AMBER]}, turn=Player.AMBER)
+def test_rejects_invalid_first_placement(action: PlaceAction, message: str) -> None:
     with pytest.raises(GameRuleError, match=message):
-        game.apply(Player.AMBER, action)
+        Game().apply(Player.AMBER, action)
 
 
-def test_only_top_controller_can_move_stack() -> None:
-    game = Game(board={(0, 0): [Player.AMBER, Player.TEAL]}, turn=Player.AMBER)
-    with pytest.raises(GameRuleError, match="not controlled"):
+def test_rejects_teal_opening_position_or_facing() -> None:
+    game = Game()
+    game.apply(Player.AMBER, PlaceAction("amber-horse", 0, 0, Facing.SOUTH))
+    with pytest.raises(GameRuleError, match="diagonally"):
+        game.apply(Player.TEAL, PlaceAction("teal-horse", 0, 1, Facing.NORTH))
+    with pytest.raises(GameRuleError, match="opposite"):
+        game.apply(Player.TEAL, PlaceAction("teal-horse", 1, 1, Facing.EAST))
+
+
+def test_later_placement_faces_distinct_friendly_anchor_and_can_stack() -> None:
+    anchor = tile("amber-horse", Player.AMBER)
+    destination_tile = tile("amber-castle", Player.AMBER)
+    game = Game(
+        board={(0, 0): [anchor], (1, 0): [destination_tile]},
+        turn=Player.AMBER,
+        move_number=2,
+    )
+    game.apply(Player.AMBER, PlaceAction("amber-goar", 1, 0, Facing.WEST))
+    assert [item.id for item in game.board[(1, 0)]] == ["amber-castle", "amber-goar"]
+
+
+def test_later_placement_rejects_enemy_destination_wrong_facing_and_frozen_anchor() -> None:
+    reserve = {Player.AMBER: [tile("amber-goar", Player.AMBER)], Player.TEAL: []}
+    cases = [
+        (
+            {
+                (0, 0): [tile("amber-horse", Player.AMBER)],
+                (1, 0): [tile("teal-horse", Player.TEAL)],
+            },
+            Facing.WEST,
+            "enemy",
+        ),
+        ({(0, 0): [tile("amber-horse", Player.AMBER)]}, Facing.EAST, "face"),
+        ({(0, 0): [tile("amber-horse", Player.AMBER, frozen=True)]}, Facing.WEST, "frozen"),
+    ]
+    for board, facing, message in cases:
+        game = Game(
+            board=board,
+            reserves={key: list(value) for key, value in reserve.items()},
+            move_number=2,
+        )
+        with pytest.raises(GameRuleError, match=message):
+            game.apply(Player.AMBER, PlaceAction("amber-goar", 1, 0, facing))
+
+
+def test_move_preserves_tiles_and_has_no_height_or_carry_cap() -> None:
+    source = [tile(f"amber-{index}", Player.AMBER) for index in range(8)]
+    destination = [tile(f"teal-{index}", Player.TEAL) for index in range(8)]
+    game = Game(board={(0, 0): source, (1, 0): destination}, move_number=2)
+    game.apply(Player.AMBER, MoveAction((0, 0), (1, 0), 8))
+    assert (0, 0) not in game.board
+    assert game.board[(1, 0)] == [*destination, *source]
+
+
+def test_move_requires_orthogonal_adjacency_control_and_valid_count() -> None:
+    game = Game(board={(0, 0): [tile("teal-horse", Player.TEAL)]}, move_number=2)
+    with pytest.raises(GameRuleError, match="controlled"):
         game.apply(Player.AMBER, MoveAction((0, 0), (1, 0), 1))
+    game.board[(0, 0)] = [tile("amber-horse", Player.AMBER)]
+    with pytest.raises(GameRuleError, match="adjacent"):
+        game.apply(Player.AMBER, MoveAction((0, 0), (1, 1), 1))
+    with pytest.raises(GameRuleError, match="at least"):
+        game.apply(Player.AMBER, MoveAction((0, 0), (1, 0), 0))
 
 
-def test_destination_height_is_limited() -> None:
+def test_rotate_top_or_whole_stack_preserves_order() -> None:
+    lower = tile("teal-horse", Player.TEAL, Facing.NORTH)
+    upper = tile("amber-horse", Player.AMBER, Facing.EAST)
+    game = Game(board={(0, 0): [lower, upper]}, move_number=2)
+    game.apply(Player.AMBER, RotateAction(0, 0, 1))
+    assert [item.facing for item in game.board[(0, 0)]] == [Facing.NORTH, Facing.SOUTH]
+
+    game.turn = Player.AMBER
+    game.apply(Player.AMBER, RotateAction(0, 0, -1, whole_stack=True))
+    assert [item.id for item in game.board[(0, 0)]] == ["teal-horse", "amber-horse"]
+    assert [item.facing for item in game.board[(0, 0)]] == [Facing.WEST, Facing.EAST]
+
+
+def test_rotate_rejects_frozen_target_non_control_and_non_quarter_turn() -> None:
+    game = Game(board={(0, 0): [tile("amber-horse", Player.AMBER, frozen=True)]}, move_number=2)
+    with pytest.raises(GameRuleError, match="frozen"):
+        game.apply(Player.AMBER, RotateAction(0, 0, 1))
+    with pytest.raises(GameRuleError, match="exactly"):
+        game.apply(Player.AMBER, RotateAction(0, 0, 2))
+
+
+def test_unplay_returns_top_tile_when_eight_neighbor_connectivity_remains() -> None:
+    removed = tile("amber-horse", Player.AMBER, Facing.EAST)
+    board = {
+        (0, 0): [tile("teal-horse", Player.TEAL), removed],
+        (1, 1): [tile("teal-goar", Player.TEAL)],
+    }
+    game = Game(board=board, move_number=2)
+    game.apply(Player.AMBER, UnplayAction(0, 0))
+    assert game.board[(0, 0)] == [tile("teal-horse", Player.TEAL)]
+    assert game.reserves[Player.AMBER][-1] is removed
+
+
+def test_unplay_rejects_disconnect_and_enemy_top() -> None:
+    bridge = tile("amber-horse", Player.AMBER)
     game = Game(
         board={
-            (0, 0): [Player.AMBER, Player.AMBER],
-            (1, 0): [Player.TEAL] * (MAX_HEIGHT - 1),
+            (-1, 0): [tile("a", Player.AMBER)],
+            (0, 0): [bridge],
+            (1, 0): [tile("b", Player.TEAL)],
         },
-        turn=Player.AMBER,
+        move_number=2,
     )
-    with pytest.raises(GameRuleError, match="exceed"):
-        game.apply(Player.AMBER, MoveAction((0, 0), (1, 0), 2))
+    with pytest.raises(GameRuleError, match="connectivity"):
+        game.apply(Player.AMBER, UnplayAction(0, 0))
+    with pytest.raises(GameRuleError, match="controlled"):
+        game.apply(Player.AMBER, UnplayAction(1, 0))
 
 
-@pytest.mark.parametrize(
-    ("player", "path"),
-    [
-        (Player.AMBER, [(q, 0) for q in range(-3, 4)]),
-        (Player.TEAL, [(0, r) for r in range(-3, 4)]),
-    ],
-)
-def test_connected_component_with_seven_coordinate_extent_wins(
-    player: Player, path: list[tuple[int, int]]
-) -> None:
-    game = Game(board={coord: [player] for coord in path})
-    assert game.connection_winner(player) is player
-
-
-@pytest.mark.parametrize(
-    ("player", "path"),
-    [
-        (Player.AMBER, [(1000 + q, -800) for q in range(7)]),
-        (Player.TEAL, [(-500, 2000 + r) for r in range(7)]),
-    ],
-)
-def test_connection_victory_is_translation_invariant(
-    player: Player, path: list[tuple[int, int]]
-) -> None:
-    game = Game(board={coord: [player] for coord in path})
-    assert game.connection_winner(player) is player
-
-
-@pytest.mark.parametrize(
-    ("player", "path"),
-    [
-        (Player.AMBER, [(q, 0) for q in range(6)]),
-        (Player.TEAL, [(0, r) for r in range(6)]),
-        (Player.AMBER, [(0, r) for r in range(7)]),
-        (Player.TEAL, [(q, 0) for q in range(7)]),
-    ],
-)
-def test_connection_requires_full_extent_along_players_axis(
-    player: Player, path: list[tuple[int, int]]
-) -> None:
-    assert Game(board={coord: [player] for coord in path}).connection_winner(player) is None
-
-
-def test_extent_across_disconnected_components_does_not_win() -> None:
-    board = {
-        **{(q, 0): [Player.AMBER] for q in range(3)},
-        **{(100 + q, 0): [Player.AMBER] for q in range(3)},
+def test_serialization_contains_complete_tiles_and_no_invented_limits() -> None:
+    state = Game().to_dict()
+    assert "max_height" not in state and "carry_limit" not in state
+    assert state["reserves"]["amber"][0] == {
+        "id": "amber-horse",
+        "name": "horse",
+        "owner": "amber",
+        "facing": "N",
+        "frozen": False,
     }
-    assert Game(board=board).connection_winner(Player.AMBER) is None
-
-
-def test_diagonal_cells_do_not_form_a_connection() -> None:
-    diagonal = {(coordinate, coordinate): [Player.AMBER] for coordinate in range(-3, 4)}
-    game = Game(board=diagonal)
-    assert game.connection_winner(Player.AMBER) is None
-
-
-def test_covered_stones_do_not_form_connection() -> None:
-    path = [(q, 0) for q in range(-3, 4)]
-    board = {coord: [Player.AMBER] for coord in path}
-    board[(0, 0)].append(Player.TEAL)
-    game = Game(board=board)
-    assert game.connection_winner(Player.AMBER) is None
-
-
-def test_win_is_immediate_and_prevents_more_actions() -> None:
-    board = {(q, 0): [Player.AMBER] for q in range(-3, 3)}
-    game = Game(board=board, turn=Player.AMBER)
-    game.apply(Player.AMBER, PlaceAction(3, 0))
-    assert game.winner is Player.AMBER
-    assert game.turn is Player.AMBER
-    with pytest.raises(GameRuleError, match="already over"):
-        game.apply(Player.AMBER, PlaceAction(0, 1))
+    assert state["winner"] is None
