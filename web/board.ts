@@ -18,6 +18,7 @@ const COLORS = {
 };
 const CELL_SIZE = 1.48;
 const TILE_HEIGHT = 0.28;
+const CLICK_DISTANCE = 5;
 
 function worldPosition(q: number, r: number): THREE.Vector3 {
   return new THREE.Vector3(q * CELL_SIZE, 0, r * CELL_SIZE);
@@ -33,6 +34,7 @@ export class BoardView {
   private readonly cells = new THREE.Group();
   private readonly targets: THREE.Mesh[] = [];
   private selected: BoardCoordinate | null = null;
+  private pointerDown: { x: number; y: number } | null = null;
 
   constructor(
     private readonly host: HTMLElement,
@@ -59,7 +61,13 @@ export class BoardView {
     key.position.set(-4, 10, 6);
     this.scene.add(ambient, key);
 
-    this.renderer.domElement.addEventListener("pointerup", (event) => this.pick(event));
+    this.renderer.domElement.addEventListener("pointerdown", (event) => {
+      this.pointerDown = { x: event.clientX, y: event.clientY };
+    });
+    this.renderer.domElement.addEventListener("pointercancel", () => {
+      this.pointerDown = null;
+    });
+    this.renderer.domElement.addEventListener("pointerup", (event) => this.handlePointerUp(event));
     new ResizeObserver(() => this.resize()).observe(this.host);
     this.resize();
   }
@@ -136,6 +144,15 @@ export class BoardView {
     if (hit) {
       this.onCell(hit.object.userData as BoardCoordinate);
     }
+  }
+
+  private handlePointerUp(event: PointerEvent): void {
+    const origin = this.pointerDown;
+    this.pointerDown = null;
+    if (!origin) return;
+
+    const distance = Math.hypot(event.clientX - origin.x, event.clientY - origin.y);
+    if (distance <= CLICK_DISTANCE) this.pick(event);
   }
 
   private resize(): void {
