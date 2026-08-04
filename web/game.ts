@@ -7,7 +7,6 @@ export interface CellState {
 }
 
 export interface GameState {
-  radius: number;
   max_height: number;
   carry_limit: number;
   turn: Player;

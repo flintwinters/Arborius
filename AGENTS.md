@@ -1,6 +1,6 @@
 # Project motivation
 
-Arborius is a compact, legible strategy game about controlling a living orthogonal canopy. The implementation should make deep spatial play easy to read: the rules remain deterministic and server-authoritative while the Three.js board communicates height, ownership, and legal actions immediately. Its Hex influence is mechanical—opposite-edge connection—not geometric.
+Arborius is a compact, legible strategy game about controlling a living, unbounded orthogonal canopy. The implementation should make deep spatial play easy to read: the rules remain deterministic and server-authoritative while the Three.js board communicates height, ownership, and legal actions immediately. Its Hex influence is mechanical—connected spans—not geometric or bounded by board edges.
 
 # Architecture
 

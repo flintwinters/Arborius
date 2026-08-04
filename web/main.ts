@@ -8,7 +8,7 @@ if (!app) throw new Error("Application mount point is missing");
 
 app.innerHTML = `
   <header><b>ARBORIUS</b><span>CANOPY COMMAND // ONLINE</span><span id="clock">TURN 000</span></header>
-  <section class="board-pane"><div class="titlebar">TACTICAL CANOPY // 7 × 7 ORTHOGONAL GRID</div><div id="board"></div></section>
+  <section class="board-pane"><div class="titlebar">TACTICAL CANOPY // UNBOUNDED ORTHOGONAL FIELD</div><div id="board"></div></section>
   <aside class="intel">
     <div class="titlebar">GAME STATE</div>
     <dl id="state"></dl>
@@ -19,10 +19,10 @@ app.innerHTML = `
     <div id="buffer" class="readout">PLACE MODE // SELECT EMPTY CELL</div>
     <div class="commands"><button id="cancel">ESC CANCEL</button><button id="reset">R RESET</button></div>
     <div class="titlebar">RULE CORE</div>
-    <ol><li>Place on any empty square.</li><li>Select your top-controlled stack, then an orthogonally adjacent square.</li><li>Carry up to five top tiles; stack height cannot exceed five.</li><li>Amber joins west/east. Teal joins north/south.</li></ol>
+    <ol><li>Place on any empty square; the field has no border.</li><li>Select your top-controlled stack, then an orthogonally adjacent square.</li><li>Carry up to five top tiles; stack height cannot exceed five.</li><li>Amber spans seven columns. Teal spans seven rows.</li></ol>
     <div class="titlebar">EVENT LOG</div><output id="log">SYSTEM READY</output>
   </aside>
-  <footer><span>CLICK: SELECT / PLACE / MOVE</span><span>DRAG: ORBIT</span><span>WHEEL: ZOOM</span><span>ESC: CANCEL</span></footer>`;
+  <footer><span>CLICK: SELECT / PLACE</span><span>DRAG TILE: MOVE STACK</span><span>DRAG FIELD: ORBIT // SHIFT+DRAG: PAN</span><span>ESC: CANCEL</span></footer>`;
 
 function requireElement<T extends Element>(selector: string): T {
   const element = document.querySelector<T>(selector);
