@@ -1,6 +1,6 @@
 # Project motivation
 
-Arborius is a compact, legible strategy game about controlling a living hexagonal canopy. The implementation should make deep spatial play easy to read: the rules remain deterministic and server-authoritative while the Three.js board communicates height, ownership, and legal actions immediately.
+Arborius is a compact, legible strategy game about controlling a living orthogonal canopy. The implementation should make deep spatial play easy to read: the rules remain deterministic and server-authoritative while the Three.js board communicates height, ownership, and legal actions immediately. Its Hex influence is mechanical—opposite-edge connection—not geometric.
 
 # Architecture
 
@@ -11,8 +11,6 @@ Arborius is a compact, legible strategy game about controlling a living hexagona
 
 # Current tasks
 
-- Establish the reproducible Python and TypeScript toolchains.
-- Implement and test the deterministic stacking/connection rules.
-- Build the dense Gruvbox operator UI and interactive Three.js board.
-- Verify production build and end-to-end gameplay flow.
-
+- Verify the integrated API and production frontend in a real browser.
+- Improve accessibility and input feedback as playtesting reveals friction.
+- Keep the permanent rules/API suite aligned with future mechanics.
