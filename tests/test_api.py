@@ -34,7 +34,7 @@ def client() -> ApiClient:
 def test_get_and_reset_game(client: ApiClient) -> None:
     state = client.get("/api/game").json()
     assert state["turn"] == "amber"
-    assert state["radius"] == 3
+    assert "radius" not in state
     assert state["reserves"] == {"amber": 18, "teal": 18}
     assert state["board"] == []
 
@@ -44,10 +44,10 @@ def test_get_and_reset_game(client: ApiClient) -> None:
     assert reset.json()["board"] == []
 
 
-def test_square_corner_is_valid_and_diagonal_move_is_rejected(client: ApiClient) -> None:
+def test_large_coordinate_is_valid_and_diagonal_move_is_rejected(client: ApiClient) -> None:
     placed = client.post(
         "/api/game/actions",
-        json={"type": "place", "player": "amber", "q": 3, "r": 3},
+        json={"type": "place", "player": "amber", "q": 1_000_000, "r": -1_000_000},
     )
     assert placed.status_code == 200
 
@@ -60,10 +60,10 @@ def test_square_corner_is_valid_and_diagonal_move_is_rejected(client: ApiClient)
         json={
             "type": "move",
             "player": "amber",
-            "from_q": 3,
-            "from_r": 3,
-            "to_q": 2,
-            "to_r": 2,
+            "from_q": 1_000_000,
+            "from_r": -1_000_000,
+            "to_q": 999_999,
+            "to_r": -1_000_001,
             "count": 1,
         },
     )
@@ -71,7 +71,7 @@ def test_square_corner_is_valid_and_diagonal_move_is_rejected(client: ApiClient)
     assert "adjacent" in moved.json()["detail"]
     assert client.get("/api/game").json()["board"] == [
         {"q": 0, "r": 0, "stack": ["teal"]},
-        {"q": 3, "r": 3, "stack": ["amber"]},
+        {"q": 1000000, "r": -1000000, "stack": ["amber"]},
     ]
 
 

@@ -1,29 +1,13 @@
 import pytest
 
 from server.game import (
-    BOARD_RADIUS,
     MAX_HEIGHT,
     Game,
     GameRuleError,
     MoveAction,
     PlaceAction,
     Player,
-    is_on_board,
 )
-
-
-def test_radius_three_square_board_geometry() -> None:
-    cells = [
-        (q, r)
-        for q in range(-BOARD_RADIUS, BOARD_RADIUS + 1)
-        for r in range(-BOARD_RADIUS, BOARD_RADIUS + 1)
-        if is_on_board((q, r))
-    ]
-    assert len(cells) == 49
-    assert is_on_board((3, -3))
-    assert is_on_board((3, 3))
-    assert not is_on_board((4, 0))
-    assert not is_on_board((0, -4))
 
 
 def test_place_consumes_reserve_and_changes_turn() -> None:
@@ -34,10 +18,11 @@ def test_place_consumes_reserve_and_changes_turn() -> None:
     assert game.turn is Player.TEAL
 
 
-@pytest.mark.parametrize("coord", [(4, 0), (0, -4), (4, -4)])
-def test_cannot_place_off_board(coord: tuple[int, int]) -> None:
-    with pytest.raises(GameRuleError, match="outside"):
-        Game().apply(Player.AMBER, PlaceAction(*coord))
+@pytest.mark.parametrize("coord", [(10**9, -(10**9)), (-(10**12), 10**12)])
+def test_can_place_at_arbitrary_integer_coordinates(coord: tuple[int, int]) -> None:
+    game = Game()
+    game.apply(Player.AMBER, PlaceAction(*coord))
+    assert game.board[coord] == [Player.AMBER]
 
 
 def test_rejects_wrong_turn_occupied_cell_and_empty_reserve() -> None:
@@ -69,6 +54,14 @@ def test_move_can_capture_control_by_covering_a_stack() -> None:
     )
     game.apply(Player.AMBER, MoveAction((0, 0), (1, 0), 1))
     assert game.board[(1, 0)] == [Player.TEAL, Player.AMBER]
+
+
+def test_move_has_no_artificial_edge() -> None:
+    source = (10**12, -(10**12))
+    destination = (source[0] + 1, source[1])
+    game = Game(board={source: [Player.AMBER]}, turn=Player.AMBER)
+    game.apply(Player.AMBER, MoveAction(source, destination, 1))
+    assert game.board == {destination: [Player.AMBER]}
 
 
 @pytest.mark.parametrize(
@@ -112,9 +105,48 @@ def test_destination_height_is_limited() -> None:
         (Player.TEAL, [(0, r) for r in range(-3, 4)]),
     ],
 )
-def test_connection_wins_across_players_edges(player: Player, path: list[tuple[int, int]]) -> None:
+def test_connected_component_with_seven_coordinate_extent_wins(
+    player: Player, path: list[tuple[int, int]]
+) -> None:
     game = Game(board={coord: [player] for coord in path})
     assert game.connection_winner(player) is player
+
+
+@pytest.mark.parametrize(
+    ("player", "path"),
+    [
+        (Player.AMBER, [(1000 + q, -800) for q in range(7)]),
+        (Player.TEAL, [(-500, 2000 + r) for r in range(7)]),
+    ],
+)
+def test_connection_victory_is_translation_invariant(
+    player: Player, path: list[tuple[int, int]]
+) -> None:
+    game = Game(board={coord: [player] for coord in path})
+    assert game.connection_winner(player) is player
+
+
+@pytest.mark.parametrize(
+    ("player", "path"),
+    [
+        (Player.AMBER, [(q, 0) for q in range(6)]),
+        (Player.TEAL, [(0, r) for r in range(6)]),
+        (Player.AMBER, [(0, r) for r in range(7)]),
+        (Player.TEAL, [(q, 0) for q in range(7)]),
+    ],
+)
+def test_connection_requires_full_extent_along_players_axis(
+    player: Player, path: list[tuple[int, int]]
+) -> None:
+    assert Game(board={coord: [player] for coord in path}).connection_winner(player) is None
+
+
+def test_extent_across_disconnected_components_does_not_win() -> None:
+    board = {
+        **{(q, 0): [Player.AMBER] for q in range(3)},
+        **{(100 + q, 0): [Player.AMBER] for q in range(3)},
+    }
+    assert Game(board=board).connection_winner(Player.AMBER) is None
 
 
 def test_diagonal_cells_do_not_form_a_connection() -> None:

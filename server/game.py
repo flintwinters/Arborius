@@ -7,10 +7,10 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Final
 
-BOARD_RADIUS: Final = 3
 STARTING_RESERVE: Final = 18
 MAX_HEIGHT: Final = 5
 CARRY_LIMIT: Final = 5
+WINNING_EXTENT: Final = 6
 
 type Coord = tuple[int, int]
 type Stack = list[Player]
@@ -52,11 +52,6 @@ class MoveAction:
 type Action = PlaceAction | MoveAction
 
 
-def is_on_board(coord: Coord) -> bool:
-    q, r = coord
-    return abs(q) <= BOARD_RADIUS and abs(r) <= BOARD_RADIUS
-
-
 def adjacent(left: Coord, right: Coord) -> bool:
     difference = (right[0] - left[0], right[1] - left[1])
     return difference in ORTHOGONAL_DIRECTIONS
@@ -91,7 +86,6 @@ class Game:
             self.turn = player.opponent
 
     def _place(self, player: Player, coord: Coord) -> None:
-        self._require_on_board(coord)
         if coord in self.board:
             raise GameRuleError("stones may only be placed on an empty cell")
         if self.reserves[player] <= 0:
@@ -101,8 +95,6 @@ class Game:
 
     def _move(self, player: Player, action: MoveAction) -> None:
         source, destination = action.source, action.destination
-        self._require_on_board(source)
-        self._require_on_board(destination)
         if not adjacent(source, destination):
             raise GameRuleError("a stack may only move to an adjacent cell")
 
@@ -129,30 +121,25 @@ class Game:
             del self.board[source]
         self.board[destination] = [*destination_stack, *carried]
 
-    @staticmethod
-    def _require_on_board(coord: Coord) -> None:
-        if not is_on_board(coord):
-            raise GameRuleError(f"cell {coord} is outside the board")
-
     def connection_winner(self, player: Player) -> Player | None:
         controlled = {coord for coord, stack in self.board.items() if stack[-1] is player}
         axis = 0 if player is Player.AMBER else 1
-        starts = {coord for coord in controlled if coord[axis] == -BOARD_RADIUS}
-        targets = {coord for coord in controlled if coord[axis] == BOARD_RADIUS}
-        if not starts or not targets:
-            return None
-
-        pending = deque(starts)
-        visited = set(starts)
-        while pending:
-            coord = pending.popleft()
-            if coord in targets:
+        unvisited = set(controlled)
+        while unvisited:
+            start = unvisited.pop()
+            pending = deque([start])
+            minimum = maximum = start[axis]
+            while pending:
+                coord = pending.popleft()
+                minimum = min(minimum, coord[axis])
+                maximum = max(maximum, coord[axis])
+                for dq, dr in ORTHOGONAL_DIRECTIONS:
+                    neighbor = (coord[0] + dq, coord[1] + dr)
+                    if neighbor in unvisited:
+                        unvisited.remove(neighbor)
+                        pending.append(neighbor)
+            if maximum - minimum >= WINNING_EXTENT:
                 return player
-            for dq, dr in ORTHOGONAL_DIRECTIONS:
-                neighbor = (coord[0] + dq, coord[1] + dr)
-                if neighbor in controlled and neighbor not in visited:
-                    visited.add(neighbor)
-                    pending.append(neighbor)
         return None
 
     def to_dict(self) -> dict[str, object]:
@@ -161,7 +148,6 @@ class Game:
             for (q, r), stack in sorted(self.board.items())
         ]
         return {
-            "radius": BOARD_RADIUS,
             "max_height": MAX_HEIGHT,
             "carry_limit": CARRY_LIMIT,
             "turn": self.turn.value,
