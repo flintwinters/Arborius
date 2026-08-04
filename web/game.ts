@@ -1,23 +1,30 @@
 export type Player = "amber" | "teal";
+export type Facing = "N" | "E" | "S" | "W";
+
+export interface Tile {
+  id: string;
+  name: string;
+  owner: Player;
+  facing: Facing;
+  frozen: boolean;
+}
 
 export interface CellState {
   q: number;
   r: number;
-  stack: Player[];
+  stack: Tile[];
 }
 
 export interface GameState {
-  max_height: number;
-  carry_limit: number;
   turn: Player;
   winner: Player | null;
   move_number: number;
-  reserves: Record<Player, number>;
+  reserves: Record<Player, Tile[]>;
   board: CellState[];
 }
 
 export type GameAction =
-  | { type: "place"; player: Player; q: number; r: number }
+  | { type: "place"; player: Player; tile_id: string; q: number; r: number; facing: Facing }
   | {
       type: "move";
       player: Player;
@@ -26,7 +33,9 @@ export type GameAction =
       to_q: number;
       to_r: number;
       count: number;
-    };
+    }
+  | { type: "rotate"; player: Player; q: number; r: number; quarter_turns: -1 | 1; whole_stack: boolean }
+  | { type: "unplay"; player: Player; q: number; r: number };
 
 async function request(path: string, init?: RequestInit): Promise<GameState> {
   const response = await fetch(path, init);

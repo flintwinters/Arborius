@@ -42,6 +42,9 @@ li { padding: 2px 0; }
 label { display: flex; justify-content: space-between; align-items: center; color: #928374; }
 input { width: 52px; padding: 2px 4px; border: 1px solid #928374; background: #1d2021; color: #ebdbb2; border-radius: 0; }
 .commands { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; padding: 4px; }
+.commands.facing { grid-template-columns: repeat(4, 1fr); }
+.reserve { display: grid; grid-template-columns: repeat(2, 1fr); gap: 3px; padding: 4px; }
+.reserve button[aria-pressed="true"] { outline: 1px solid #fabd2f; color: #fabd2f; }
 button { min-height: 25px; border: 1px solid #a89984; border-radius: 0; background: #282828; color: #ebdbb2; box-shadow: 2px 2px 0 #111; cursor: pointer; }
 button:active { box-shadow: none; transform: translate(2px, 2px); }
 button:focus-visible, input:focus-visible { outline: 1px solid #fabd2f; outline-offset: 1px; }

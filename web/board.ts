@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
-import { type CellState, type GameState } from "./game";
+import { type CellState, type Facing, type GameState, type Tile } from "./game";
 
 export interface BoardCoordinate {
   q: number;
@@ -31,6 +31,27 @@ const FIELD_PADDING = 1;
 
 function worldPosition(q: number, r: number): THREE.Vector3 {
   return new THREE.Vector3(q * CELL_SIZE, 0, r * CELL_SIZE);
+}
+
+const FACING_ROTATION: Record<Facing, number> = {
+  N: 0,
+  E: -Math.PI / 2,
+  S: Math.PI,
+  W: Math.PI / 2,
+};
+
+function createFacingArrow(tile: Tile): THREE.Mesh {
+  const shape = new THREE.Shape();
+  shape.moveTo(0, 0.3);
+  shape.lineTo(-0.18, -0.2);
+  shape.lineTo(0.18, -0.2);
+  shape.closePath();
+  const arrow = new THREE.Mesh(
+    new THREE.ShapeGeometry(shape),
+    new THREE.MeshBasicMaterial({ color: tile.frozen ? 0x665c54 : 0x1d2021, side: THREE.DoubleSide }),
+  );
+  arrow.rotation.set(-Math.PI / 2, 0, FACING_ROTATION[tile.facing]);
+  return arrow;
 }
 
 export class BoardView {
@@ -162,12 +183,12 @@ export class BoardView {
     const { q, r } = cell;
     const position = worldPosition(q, r);
     const selected = this.selected?.q === q && this.selected.r === r;
-    cell.stack.forEach((player, index) => {
+    cell.stack.forEach((tileState, index) => {
       const carried = selected && index >= cell.stack.length - this.selectedCount;
       const tile = new THREE.Mesh(
         new THREE.BoxGeometry(CELL_SIZE * 0.76, TILE_HEIGHT, CELL_SIZE * 0.76),
         new THREE.MeshStandardMaterial({
-          color: carried ? COLORS.selected : COLORS[player],
+          color: carried ? COLORS.selected : COLORS[tileState.owner],
           roughness: 0.42,
           metalness: 0.12,
         }),
@@ -176,9 +197,14 @@ export class BoardView {
       tile.userData = { q, r, count: cell.stack.length - index };
       this.cells.add(tile);
       this.targets.push(tile);
+      const arrow = createFacingArrow(tileState);
+      arrow.position.set(position.x, tile.position.y + TILE_HEIGHT / 2 + 0.006, position.z);
+      this.cells.add(arrow);
       const rim = new THREE.LineSegments(
         new THREE.EdgesGeometry(tile.geometry),
-        new THREE.LineBasicMaterial({ color: player === "amber" ? 0xfff2a8 : 0xd5ffd0 }),
+        new THREE.LineBasicMaterial({
+          color: tileState.owner === "amber" ? 0xfff2a8 : 0xd5ffd0,
+        }),
       );
       rim.position.copy(tile.position);
       this.cells.add(rim);
@@ -277,11 +303,11 @@ export class BoardView {
     )?.stack;
     if (!stack) return;
 
-    stack.slice(-selection.count).forEach((player, index) => {
+    stack.slice(-selection.count).forEach((tileState, index) => {
       const tile = new THREE.Mesh(
         new THREE.BoxGeometry(CELL_SIZE * 0.76, TILE_HEIGHT, CELL_SIZE * 0.76),
         new THREE.MeshStandardMaterial({
-          color: COLORS[player],
+          color: COLORS[tileState.owner],
           transparent: true,
           opacity: 0.48,
           depthWrite: false,
@@ -291,6 +317,9 @@ export class BoardView {
       );
       tile.position.y = TILE_HEIGHT * (index + 0.5);
       this.ghost.add(tile);
+      const arrow = createFacingArrow(tileState);
+      arrow.position.y = TILE_HEIGHT * (index + 1) + 0.006;
+      this.ghost.add(arrow);
     });
   }
 
