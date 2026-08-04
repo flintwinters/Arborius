@@ -191,25 +191,39 @@ class Game:
 
     def _move(self, player: Player, action: MoveAction) -> None:
         source, destination = action.source, action.destination
-        if not adjacent(source, destination):
-            raise GameRuleError("a stack may only move to an adjacent cell")
         source_stack = self.board.get(source)
         if not source_stack:
             raise GameRuleError("the source cell is empty")
-        if source_stack[-1].owner is not player:
+        controller = source_stack[-1]
+        if controller.owner is not player:
             raise GameRuleError("the source stack is not controlled by this player")
+        if controller.frozen:
+            raise GameRuleError("a frozen tile cannot control a move")
         if action.count < 1:
             raise GameRuleError("count must be at least 1")
         if action.count > len(source_stack):
             raise GameRuleError("cannot carry more tiles than the source stack contains")
+        if destination != _offset(source, controller.facing.vector):
+            raise GameRuleError("a stack must move exactly one cell forward")
 
         split_at = len(source_stack) - action.count
+        destination_stack = self.board.get(destination, [])
+        if len(destination_stack) > split_at + 1:
+            raise GameRuleError("a stack cannot ascend more than one level")
+
+        occupied_after = set(self.board)
+        if split_at == 0:
+            occupied_after.remove(source)
+        occupied_after.add(destination)
+        if not self._one_mind_connected(occupied_after):
+            raise GameRuleError("moving that stack would break One Mind connectivity")
+
         carried = source_stack[split_at:]
         if split_at:
             self.board[source] = source_stack[:split_at]
         else:
             del self.board[source]
-        self.board[destination] = [*self.board.get(destination, []), *carried]
+        self.board[destination] = [*destination_stack, *carried]
 
     def _rotate(self, player: Player, action: RotateAction) -> None:
         if action.quarter_turns not in (-1, 1):

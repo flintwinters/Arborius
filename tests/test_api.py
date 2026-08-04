@@ -90,8 +90,8 @@ def test_place_rotate_move_and_unplay_round_trip(client: ApiClient) -> None:
             "player": "teal",
             "from_q": 1,
             "from_r": 1,
-            "to_q": 1,
-            "to_r": 0,
+            "to_q": 0,
+            "to_r": 1,
             "count": 1,
         },
     )

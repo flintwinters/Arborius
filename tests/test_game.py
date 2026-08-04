@@ -93,13 +93,122 @@ def test_later_placement_rejects_enemy_destination_wrong_facing_and_frozen_ancho
             game.apply(Player.AMBER, PlaceAction("amber-goar", 1, 0, facing))
 
 
-def test_move_preserves_tiles_and_has_no_height_or_carry_cap() -> None:
-    source = [tile(f"amber-{index}", Player.AMBER) for index in range(8)]
+@pytest.mark.parametrize(
+    ("facing", "destination"),
+    [
+        (Facing.NORTH, (0, -1)),
+        (Facing.EAST, (1, 0)),
+        (Facing.SOUTH, (0, 1)),
+        (Facing.WEST, (-1, 0)),
+    ],
+)
+def test_move_follows_controller_facing_in_all_directions(
+    facing: Facing, destination: tuple[int, int]
+) -> None:
+    moving = tile("amber-horse", Player.AMBER, facing)
+    game = Game(board={(0, 0): [moving]}, move_number=2)
+    game.apply(Player.AMBER, MoveAction((0, 0), destination, 1))
+    assert game.board == {destination: [moving]}
+
+
+@pytest.mark.parametrize("destination", [(0, 1), (-1, 0), (1, 1)])
+def test_move_rejects_backward_sideways_and_diagonal_destinations(
+    destination: tuple[int, int],
+) -> None:
+    game = Game(
+        board={(0, 0): [tile("amber-horse", Player.AMBER, Facing.NORTH)]},
+        move_number=2,
+    )
+    with pytest.raises(GameRuleError, match="forward"):
+        game.apply(Player.AMBER, MoveAction((0, 0), destination, 1))
+
+
+@pytest.mark.parametrize(("base_height", "destination_height"), [(2, 2), (2, 3), (2, 1)])
+def test_move_allows_advance_ascend_and_descend(base_height: int, destination_height: int) -> None:
+    base = [tile(f"teal-base-{index}", Player.TEAL) for index in range(base_height)]
+    moving = tile("amber-controller", Player.AMBER, Facing.EAST)
+    destination = [
+        tile(f"teal-destination-{index}", Player.TEAL) for index in range(destination_height)
+    ]
+    game = Game(board={(0, 0): [*base, moving], (1, 0): destination}, move_number=2)
+    game.apply(Player.AMBER, MoveAction((0, 0), (1, 0), 1))
+    assert game.board[(0, 0)] == base
+    assert game.board[(1, 0)] == [*destination, moving]
+
+
+def test_move_has_no_carry_cap_and_preserves_mixed_stack_suffix_order() -> None:
+    base = [tile(f"amber-base-{index}", Player.AMBER) for index in range(7)]
+    suffix = [
+        tile("teal-captive", Player.TEAL, Facing.SOUTH),
+        tile("amber-controller", Player.AMBER, Facing.EAST),
+    ]
     destination = [tile(f"teal-{index}", Player.TEAL) for index in range(8)]
+    game = Game(board={(0, 0): [*base, *suffix], (1, 0): destination}, move_number=2)
+    game.apply(Player.AMBER, MoveAction((0, 0), (1, 0), 2))
+    assert game.board[(0, 0)] == base
+    assert game.board[(1, 0)] == [*destination, *suffix]
+
+
+def test_move_rejects_destination_more_than_one_above_base() -> None:
+    source = [
+        tile("amber-base", Player.AMBER),
+        tile("amber-controller", Player.AMBER, Facing.EAST),
+    ]
+    destination = [tile(f"teal-{index}", Player.TEAL) for index in range(3)]
     game = Game(board={(0, 0): source, (1, 0): destination}, move_number=2)
-    game.apply(Player.AMBER, MoveAction((0, 0), (1, 0), 8))
-    assert (0, 0) not in game.board
-    assert game.board[(1, 0)] == [*destination, *source]
+    with pytest.raises(GameRuleError, match="more than one"):
+        game.apply(Player.AMBER, MoveAction((0, 0), (1, 0), 1))
+
+
+def test_move_rejects_frozen_controlling_top() -> None:
+    game = Game(
+        board={
+            (0, 0): [
+                tile("amber-base", Player.AMBER),
+                tile("amber-top", Player.AMBER, Facing.EAST, frozen=True),
+            ]
+        },
+        move_number=2,
+    )
+    with pytest.raises(GameRuleError, match="frozen"):
+        game.apply(Player.AMBER, MoveAction((0, 0), (1, 0), 1))
+
+
+def test_move_rejects_source_connectivity_split() -> None:
+    game = Game(
+        board={
+            (-1, -1): [tile("upper", Player.TEAL)],
+            (0, 0): [tile("bridge", Player.AMBER, Facing.EAST)],
+            (-1, 1): [tile("lower", Player.TEAL)],
+        },
+        move_number=2,
+    )
+    with pytest.raises(GameRuleError, match="connectivity"):
+        game.apply(Player.AMBER, MoveAction((0, 0), (1, 0), 1))
+
+
+def test_move_rejects_destination_connectivity_split() -> None:
+    game = Game(
+        board={
+            (-1, 0): [tile("root", Player.TEAL)],
+            (0, 0): [tile("controller", Player.AMBER, Facing.EAST)],
+        },
+        move_number=2,
+    )
+    with pytest.raises(GameRuleError, match="connectivity"):
+        game.apply(Player.AMBER, MoveAction((0, 0), (1, 0), 1))
+
+
+def test_rejected_move_is_atomic() -> None:
+    source = [tile("amber-base", Player.AMBER), tile("amber-top", Player.AMBER, Facing.EAST)]
+    destination = [tile(f"teal-{index}", Player.TEAL) for index in range(3)]
+    game = Game(board={(0, 0): source, (1, 0): destination}, move_number=2)
+    before = {coord: list(stack) for coord, stack in game.board.items()}
+    with pytest.raises(GameRuleError):
+        game.apply(Player.AMBER, MoveAction((0, 0), (1, 0), 1))
+    assert game.board == before
+    assert game.turn is Player.AMBER
+    assert game.move_number == 2
 
 
 def test_move_requires_orthogonal_adjacency_control_and_valid_count() -> None:
@@ -107,7 +216,7 @@ def test_move_requires_orthogonal_adjacency_control_and_valid_count() -> None:
     with pytest.raises(GameRuleError, match="controlled"):
         game.apply(Player.AMBER, MoveAction((0, 0), (1, 0), 1))
     game.board[(0, 0)] = [tile("amber-horse", Player.AMBER)]
-    with pytest.raises(GameRuleError, match="adjacent"):
+    with pytest.raises(GameRuleError, match="forward"):
         game.apply(Player.AMBER, MoveAction((0, 0), (1, 1), 1))
     with pytest.raises(GameRuleError, match="at least"):
         game.apply(Player.AMBER, MoveAction((0, 0), (1, 0), 0))
