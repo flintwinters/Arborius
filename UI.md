@@ -1,0 +1,6 @@
+- Do NOT use animations or transitions in UI.
+- Build web UI as a full-screen high contrast Gruvbox-dark operator panel of tiled but not overly nested terminal panes. Density should feel almost excessive: use the smallest practical type, near-solid leading, tight rows, shallow chrome, hairline gutters, no card breathing room; if comfortable, compress it. Organize with square windows, colored titlebars, dividers, and semantic accents. Every command uses the same small flat-faced dark key with a crisp outline and external offset shadow—never bevel colored neumorphic accents, inset, enlarge, or recolor individual keys; show state beside them. Keep tabs flat. Keyboard-first, motionless, subtly Windows 98. Use segment or ribbon buttons that vertically fill their containers intead of discrete buttons to minimize unecessary gaps.
+- Use many different bright colors in UI as a tool for the eye to quickly gather information about a display.
+- Maximal information density and minimal information redundancy in displays. Minimal interactions and whitespace.
+- Text and keyboard forward UI
+- Flatten the DOM hierarchy. Remove any wrapper div that does not contribute unique layout, scrolling, clipping, positioning, or styling behavior. Let the primary content container occupy the available space directly instead of nesting it inside another bordered panel.
