@@ -47,7 +47,7 @@ export class BoardView {
     new THREE.PlaneGeometry(1, 1),
     new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }),
   );
-  private field: THREE.InstancedMesh | null = null;
+  private field: THREE.LineSegments | null = null;
   private selected: BoardCoordinate | null = null;
   private selectedCount = 0;
   private interaction: PointerInteraction | null = null;
@@ -130,21 +130,25 @@ export class BoardView {
     const maxR = (rValues.length ? Math.max(...rValues) : 1) + FIELD_PADDING;
     const columns = maxQ - minQ + 1;
     const rows = maxR - minR + 1;
-    const field = new THREE.InstancedMesh(
-      new THREE.BoxGeometry(CELL_SIZE * 0.91, 0.045, CELL_SIZE * 0.91),
-      new THREE.MeshStandardMaterial({ color: 0x3c3836, roughness: 0.82, metalness: 0.02 }),
-      columns * rows,
-    );
-    const matrix = new THREE.Matrix4();
-    let instance = 0;
-    for (let q = minQ; q <= maxQ; q += 1) {
-      for (let r = minR; r <= maxR; r += 1) {
-        matrix.makeTranslation(q * CELL_SIZE, 0, r * CELL_SIZE);
-        field.setMatrixAt(instance, matrix);
-        instance += 1;
-      }
+    const left = (minQ - 0.5) * CELL_SIZE;
+    const right = (maxQ + 0.5) * CELL_SIZE;
+    const near = (minR - 0.5) * CELL_SIZE;
+    const far = (maxR + 0.5) * CELL_SIZE;
+    const vertices: number[] = [];
+    for (let q = minQ; q <= maxQ + 1; q += 1) {
+      const x = (q - 0.5) * CELL_SIZE;
+      vertices.push(x, 0, near, x, 0, far);
     }
-    field.instanceMatrix.needsUpdate = true;
+    for (let r = minR; r <= maxR + 1; r += 1) {
+      const z = (r - 0.5) * CELL_SIZE;
+      vertices.push(left, 0, z, right, 0, z);
+    }
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.Float32BufferAttribute(vertices, 3));
+    const field = new THREE.LineSegments(
+      geometry,
+      new THREE.LineBasicMaterial({ color: COLORS.grid }),
+    );
     this.field = field;
     this.scene.add(field);
 
