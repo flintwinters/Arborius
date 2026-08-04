@@ -40,15 +40,20 @@ const clockNode = requireElement<HTMLElement>("#clock");
 
 let game: GameState;
 let selected: BoardCoordinate | null = null;
+let selectedCount = 0;
 let busy = false;
-const board = new BoardView(boardHost, (coordinate) => void choose(coordinate));
+const board = new BoardView(
+  boardHost,
+  (coordinate, count) => void choose(coordinate, count),
+  (source, destination, count) => void move(source, destination, count),
+);
 
 function stackAt(coordinate: BoardCoordinate) {
   return game.board.find((cell) => cell.q === coordinate.q && cell.r === coordinate.r)?.stack ?? [];
 }
 
 function render(): void {
-  board.setSelected(selected);
+  board.setSelected(selected, selectedCount);
   board.update(game);
   clockNode.textContent = `TURN ${String(game.move_number).padStart(3, "0")}`;
   const winner = game.winner ? `${playerLabel(game.winner)} VICTORY` : "CONTESTED";
@@ -59,7 +64,7 @@ function render(): void {
     const stack = stackAt(selected);
     inspectNode.textContent = `CELL ${selected.q},${selected.r} // HEIGHT ${stack.length} // ${stack.length ? stack.map(playerLabel).join(" > ") : "EMPTY"}`;
     bufferNode.textContent = stack.length
-      ? `MOVE SOURCE ${selected.q},${selected.r} // SELECT ADJACENT DESTINATION`
+      ? `MOVE ${selectedCount} FROM ${selected.q},${selected.r} // CLICK OR DRAG TO DESTINATION`
       : "PLACE MODE // SELECT EMPTY CELL";
   } else {
     inspectNode.textContent = "SELECT A CELL";
@@ -74,6 +79,7 @@ async function submit(action: GameAction): Promise<void> {
     game = await gameApi.act(action);
     logNode.textContent = `${playerLabel(action.player)} ${action.type.toUpperCase()} ACCEPTED`;
     selected = null;
+    selectedCount = 0;
   } catch (error) {
     logNode.textContent = `REJECTED // ${error instanceof Error ? error.message : "UNKNOWN ERROR"}`;
   } finally {
@@ -82,7 +88,7 @@ async function submit(action: GameAction): Promise<void> {
   }
 }
 
-async function choose(coordinate: BoardCoordinate): Promise<void> {
+async function choose(coordinate: BoardCoordinate, count?: number): Promise<void> {
   if (game.winner || busy) return;
   const target = stackAt(coordinate);
   if (!selected) {
@@ -92,6 +98,8 @@ async function choose(coordinate: BoardCoordinate): Promise<void> {
     }
     if (target.at(-1) === game.turn) {
       selected = coordinate;
+      selectedCount = count ?? 1;
+      carryNode.value = String(selectedCount);
       render();
     } else {
       logNode.textContent = "REJECTED // OPPONENT CONTROLS THAT STACK";
@@ -100,6 +108,7 @@ async function choose(coordinate: BoardCoordinate): Promise<void> {
   }
   if (cellKey(selected.q, selected.r) === cellKey(coordinate.q, coordinate.r)) {
     selected = null;
+    selectedCount = 0;
     render();
     return;
   }
@@ -110,24 +119,57 @@ async function choose(coordinate: BoardCoordinate): Promise<void> {
     from_r: selected.r,
     to_q: coordinate.q,
     to_r: coordinate.r,
-    count: Number(carryNode.value),
+    count: selectedCount || Number(carryNode.value),
+  });
+}
+
+async function move(
+  source: BoardCoordinate,
+  destination: BoardCoordinate,
+  count: number,
+): Promise<void> {
+  const stack = stackAt(source);
+  if (game.winner || busy) return;
+  if (stack.at(-1) !== game.turn) {
+    logNode.textContent = "REJECTED // OPPONENT CONTROLS THAT STACK";
+    return;
+  }
+  selected = source;
+  selectedCount = count;
+  await submit({
+    type: "move",
+    player: game.turn,
+    from_q: source.q,
+    from_r: source.r,
+    to_q: destination.q,
+    to_r: destination.r,
+    count,
   });
 }
 
 function cancel(): void {
   selected = null;
+  selectedCount = 0;
   render();
 }
 
 async function reset(): Promise<void> {
   game = await gameApi.reset();
   selected = null;
+  selectedCount = 0;
   logNode.textContent = "MATCH RESET // AMBER TO MOVE";
   render();
 }
 
 document.querySelector("#cancel")?.addEventListener("click", cancel);
 document.querySelector("#reset")?.addEventListener("click", () => void reset());
+carryNode.addEventListener("change", () => {
+  if (!selected) return;
+  const height = stackAt(selected).length;
+  selectedCount = Math.max(1, Math.min(Number(carryNode.value), height, game.carry_limit));
+  carryNode.value = String(selectedCount);
+  render();
+});
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") cancel();
   if (event.key.toLowerCase() === "r") void reset();

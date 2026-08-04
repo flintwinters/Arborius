@@ -8,6 +8,16 @@ export interface BoardCoordinate {
   r: number;
 }
 
+export interface StackSelection extends BoardCoordinate {
+  count: number;
+}
+
+interface PointerInteraction {
+  x: number;
+  y: number;
+  selection: StackSelection | null;
+}
+
 const COLORS = {
   amber: 0xfabd2f,
   teal: 0x8ec07c,
@@ -34,11 +44,17 @@ export class BoardView {
   private readonly cells = new THREE.Group();
   private readonly targets: THREE.Mesh[] = [];
   private selected: BoardCoordinate | null = null;
-  private pointerDown: { x: number; y: number } | null = null;
+  private selectedCount = 0;
+  private interaction: PointerInteraction | null = null;
 
   constructor(
     private readonly host: HTMLElement,
-    private readonly onCell: (coordinate: BoardCoordinate) => void,
+    private readonly onCell: (coordinate: BoardCoordinate, count?: number) => void,
+    private readonly onMove: (
+      source: BoardCoordinate,
+      destination: BoardCoordinate,
+      count: number,
+    ) => void,
   ) {
     this.scene.background = new THREE.Color(0x1d2021);
     this.scene.add(this.cells);
@@ -61,19 +77,16 @@ export class BoardView {
     key.position.set(-4, 10, 6);
     this.scene.add(ambient, key);
 
-    this.renderer.domElement.addEventListener("pointerdown", (event) => {
-      this.pointerDown = { x: event.clientX, y: event.clientY };
-    });
-    this.renderer.domElement.addEventListener("pointercancel", () => {
-      this.pointerDown = null;
-    });
+    this.renderer.domElement.addEventListener("pointerdown", (event) => this.handlePointerDown(event));
+    this.renderer.domElement.addEventListener("pointercancel", () => this.cancelInteraction());
     this.renderer.domElement.addEventListener("pointerup", (event) => this.handlePointerUp(event));
     new ResizeObserver(() => this.resize()).observe(this.host);
     this.resize();
   }
 
-  setSelected(coordinate: BoardCoordinate | null): void {
+  setSelected(coordinate: BoardCoordinate | null, count = 0): void {
     this.selected = coordinate;
+    this.selectedCount = count;
   }
 
   update(state: GameState): void {
@@ -112,16 +125,17 @@ export class BoardView {
     this.cells.add(outline);
 
     cell?.stack.forEach((player, index) => {
+      const carried = selected && index >= cell.stack.length - this.selectedCount;
       const tile = new THREE.Mesh(
         new THREE.BoxGeometry(CELL_SIZE * 0.76, TILE_HEIGHT, CELL_SIZE * 0.76),
         new THREE.MeshStandardMaterial({
-          color: COLORS[player],
+          color: carried ? COLORS.selected : COLORS[player],
           roughness: 0.42,
           metalness: 0.12,
         }),
       );
       tile.position.set(position.x, 0.14 + TILE_HEIGHT * (index + 0.5), position.z);
-      tile.userData = { q, r };
+      tile.userData = { q, r, count: cell.stack.length - index };
       this.cells.add(tile);
       this.targets.push(tile);
       const rim = new THREE.LineSegments(
@@ -133,26 +147,55 @@ export class BoardView {
     });
   }
 
-  private pick(event: PointerEvent): void {
+  private pick(event: PointerEvent): THREE.Intersection<THREE.Mesh> | undefined {
     const bounds = this.renderer.domElement.getBoundingClientRect();
     this.pointer.set(
       ((event.clientX - bounds.left) / bounds.width) * 2 - 1,
       -((event.clientY - bounds.top) / bounds.height) * 2 + 1,
     );
     this.raycaster.setFromCamera(this.pointer, this.camera);
-    const hit = this.raycaster.intersectObjects(this.targets, false)[0];
-    if (hit) {
-      this.onCell(hit.object.userData as BoardCoordinate);
+    return this.raycaster.intersectObjects(this.targets, false)[0] as
+      | THREE.Intersection<THREE.Mesh>
+      | undefined;
+  }
+
+  private handlePointerDown(event: PointerEvent): void {
+    const hit = this.pick(event);
+    const count = hit?.object.userData.count as number | undefined;
+    const coordinate = hit?.object.userData as BoardCoordinate | undefined;
+    const selection = coordinate && count ? { ...coordinate, count } : null;
+    this.interaction = { x: event.clientX, y: event.clientY, selection };
+    if (selection) {
+      this.controls.enabled = false;
+      this.renderer.domElement.setPointerCapture(event.pointerId);
+      this.onCell(selection, count);
     }
   }
 
   private handlePointerUp(event: PointerEvent): void {
-    const origin = this.pointerDown;
-    this.pointerDown = null;
-    if (!origin) return;
+    const interaction = this.interaction;
+    this.cancelInteraction(event.pointerId);
+    if (!interaction) return;
 
-    const distance = Math.hypot(event.clientX - origin.x, event.clientY - origin.y);
-    if (distance <= CLICK_DISTANCE) this.pick(event);
+    const distance = Math.hypot(event.clientX - interaction.x, event.clientY - interaction.y);
+    const hit = this.pick(event);
+    const destination = hit?.object.userData as BoardCoordinate | undefined;
+    if (interaction.selection && distance > CLICK_DISTANCE && destination) {
+      this.onMove(interaction.selection, destination, interaction.selection.count);
+      return;
+    }
+    if (distance <= CLICK_DISTANCE && destination) {
+      const count = hit?.object.userData.count as number | undefined;
+      this.onCell(destination, count);
+    }
+  }
+
+  private cancelInteraction(pointerId?: number): void {
+    this.interaction = null;
+    this.controls.enabled = true;
+    if (pointerId !== undefined && this.renderer.domElement.hasPointerCapture(pointerId)) {
+      this.renderer.domElement.releasePointerCapture(pointerId);
+    }
   }
 
   private resize(): void {
