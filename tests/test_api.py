@@ -44,6 +44,37 @@ def test_get_and_reset_game(client: ApiClient) -> None:
     assert reset.json()["board"] == []
 
 
+def test_square_corner_is_valid_and_diagonal_move_is_rejected(client: ApiClient) -> None:
+    placed = client.post(
+        "/api/game/actions",
+        json={"type": "place", "player": "amber", "q": 3, "r": 3},
+    )
+    assert placed.status_code == 200
+
+    client.post(
+        "/api/game/actions",
+        json={"type": "place", "player": "teal", "q": 0, "r": 0},
+    )
+    moved = client.post(
+        "/api/game/actions",
+        json={
+            "type": "move",
+            "player": "amber",
+            "from_q": 3,
+            "from_r": 3,
+            "to_q": 2,
+            "to_r": 2,
+            "count": 1,
+        },
+    )
+    assert moved.status_code == 400
+    assert "adjacent" in moved.json()["detail"]
+    assert client.get("/api/game").json()["board"] == [
+        {"q": 0, "r": 0, "stack": ["teal"]},
+        {"q": 3, "r": 3, "stack": ["amber"]},
+    ]
+
+
 def test_place_and_move_round_trip(client: ApiClient) -> None:
     placed = client.post(
         "/api/game/actions",

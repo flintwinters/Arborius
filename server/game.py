@@ -15,12 +15,10 @@ CARRY_LIMIT: Final = 5
 type Coord = tuple[int, int]
 type Stack = list[Player]
 
-HEX_DIRECTIONS: Final[tuple[Coord, ...]] = (
+ORTHOGONAL_DIRECTIONS: Final[tuple[Coord, ...]] = (
     (1, 0),
-    (1, -1),
     (0, -1),
     (-1, 0),
-    (-1, 1),
     (0, 1),
 )
 
@@ -56,12 +54,12 @@ type Action = PlaceAction | MoveAction
 
 def is_on_board(coord: Coord) -> bool:
     q, r = coord
-    return max(abs(q), abs(r), abs(q + r)) <= BOARD_RADIUS
+    return abs(q) <= BOARD_RADIUS and abs(r) <= BOARD_RADIUS
 
 
 def adjacent(left: Coord, right: Coord) -> bool:
     difference = (right[0] - left[0], right[1] - left[1])
-    return difference in HEX_DIRECTIONS
+    return difference in ORTHOGONAL_DIRECTIONS
 
 
 @dataclass(slots=True)
@@ -150,7 +148,7 @@ class Game:
             coord = pending.popleft()
             if coord in targets:
                 return player
-            for dq, dr in HEX_DIRECTIONS:
+            for dq, dr in ORTHOGONAL_DIRECTIONS:
                 neighbor = (coord[0] + dq, coord[1] + dr)
                 if neighbor in controlled and neighbor not in visited:
                     visited.add(neighbor)

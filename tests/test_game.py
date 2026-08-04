@@ -12,16 +12,18 @@ from server.game import (
 )
 
 
-def test_radius_three_board_geometry() -> None:
+def test_radius_three_square_board_geometry() -> None:
     cells = [
         (q, r)
         for q in range(-BOARD_RADIUS, BOARD_RADIUS + 1)
         for r in range(-BOARD_RADIUS, BOARD_RADIUS + 1)
         if is_on_board((q, r))
     ]
-    assert len(cells) == 37
+    assert len(cells) == 49
     assert is_on_board((3, -3))
-    assert not is_on_board((3, 1))
+    assert is_on_board((3, 3))
+    assert not is_on_board((4, 0))
+    assert not is_on_board((0, -4))
 
 
 def test_place_consumes_reserve_and_changes_turn() -> None:
@@ -32,7 +34,7 @@ def test_place_consumes_reserve_and_changes_turn() -> None:
     assert game.turn is Player.TEAL
 
 
-@pytest.mark.parametrize("coord", [(4, 0), (0, -4), (3, 1)])
+@pytest.mark.parametrize("coord", [(4, 0), (0, -4), (4, -4)])
 def test_cannot_place_off_board(coord: tuple[int, int]) -> None:
     with pytest.raises(GameRuleError, match="outside"):
         Game().apply(Player.AMBER, PlaceAction(*coord))
@@ -73,6 +75,7 @@ def test_move_can_capture_control_by_covering_a_stack() -> None:
     ("action", "message"),
     [
         (MoveAction((0, 0), (2, 0), 1), "adjacent"),
+        (MoveAction((0, 0), (1, -1), 1), "adjacent"),
         (MoveAction((1, 0), (0, 0), 1), "empty"),
         (MoveAction((0, 0), (1, 0), 0), "between"),
         (MoveAction((0, 0), (1, 0), 2), "more stones"),
@@ -109,9 +112,15 @@ def test_destination_height_is_limited() -> None:
         (Player.TEAL, [(0, r) for r in range(-3, 4)]),
     ],
 )
-def test_connection_wins_across_players_axis(player: Player, path: list[tuple[int, int]]) -> None:
+def test_connection_wins_across_players_edges(player: Player, path: list[tuple[int, int]]) -> None:
     game = Game(board={coord: [player] for coord in path})
     assert game.connection_winner(player) is player
+
+
+def test_diagonal_cells_do_not_form_a_connection() -> None:
+    diagonal = {(coordinate, coordinate): [Player.AMBER] for coordinate in range(-3, 4)}
+    game = Game(board=diagonal)
+    assert game.connection_winner(Player.AMBER) is None
 
 
 def test_covered_stones_do_not_form_connection() -> None:
@@ -130,4 +139,3 @@ def test_win_is_immediate_and_prevents_more_actions() -> None:
     assert game.turn is Player.AMBER
     with pytest.raises(GameRuleError, match="already over"):
         game.apply(Player.AMBER, PlaceAction(0, 1))
-
