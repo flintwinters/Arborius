@@ -27,47 +27,10 @@ const COLORS = {
 const CELL_SIZE = 1.48;
 const TILE_HEIGHT = 0.28;
 const CLICK_DISTANCE = 5;
-const GROUND_SIZE = 2000;
-const GRID_RADIUS = 50;
+const FIELD_PADDING = 1;
 
 function worldPosition(q: number, r: number): THREE.Vector3 {
   return new THREE.Vector3(q * CELL_SIZE, 0, r * CELL_SIZE);
-}
-
-function createGrid(): THREE.LineSegments {
-  const extent = GRID_RADIUS * CELL_SIZE;
-  const vertices: number[] = [];
-  for (let index = -GRID_RADIUS; index <= GRID_RADIUS; index += 1) {
-    const offset = (index - 0.5) * CELL_SIZE;
-    vertices.push(-extent, 0, offset, extent, 0, offset);
-    vertices.push(offset, 0, -extent, offset, 0, extent);
-  }
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute("position", new THREE.Float32BufferAttribute(vertices, 3));
-  return new THREE.LineSegments(
-    geometry,
-    new THREE.LineBasicMaterial({ color: COLORS.grid, transparent: true, opacity: 0.52 }),
-  );
-}
-
-function createField(): THREE.InstancedMesh {
-  const width = GRID_RADIUS * 2 + 1;
-  const field = new THREE.InstancedMesh(
-    new THREE.BoxGeometry(CELL_SIZE * 0.91, 0.08, CELL_SIZE * 0.91),
-    new THREE.MeshStandardMaterial({ color: 0x3c3836, roughness: 0.78, metalness: 0.04 }),
-    width * width,
-  );
-  const matrix = new THREE.Matrix4();
-  let instance = 0;
-  for (let q = -GRID_RADIUS; q <= GRID_RADIUS; q += 1) {
-    for (let r = -GRID_RADIUS; r <= GRID_RADIUS; r += 1) {
-      matrix.makeTranslation(q * CELL_SIZE, 0, r * CELL_SIZE);
-      field.setMatrixAt(instance, matrix);
-      instance += 1;
-    }
-  }
-  field.instanceMatrix.needsUpdate = true;
-  return field;
 }
 
 export class BoardView {
@@ -80,11 +43,10 @@ export class BoardView {
   private readonly cells = new THREE.Group();
   private readonly targets: THREE.Mesh[] = [];
   private readonly ground = new THREE.Mesh(
-    new THREE.PlaneGeometry(GROUND_SIZE, GROUND_SIZE),
+    new THREE.PlaneGeometry(1, 1),
     new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }),
   );
-  private readonly grid = createGrid();
-  private readonly field = createField();
+  private field: THREE.InstancedMesh | null = null;
   private selected: BoardCoordinate | null = null;
   private selectedCount = 0;
   private interaction: PointerInteraction | null = null;
@@ -101,8 +63,7 @@ export class BoardView {
     this.scene.background = new THREE.Color(0x1d2021);
     this.ground.rotation.x = -Math.PI / 2;
     this.ground.position.y = -0.02;
-    this.grid.position.y = -0.01;
-    this.scene.add(this.ground, this.field, this.grid, this.cells);
+    this.scene.add(this.ground, this.cells);
     this.targets.push(this.ground);
     this.camera.position.set(9.5, 11.5, 12.5);
     this.camera.lookAt(0, 0, 0);
@@ -112,14 +73,11 @@ export class BoardView {
 
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableDamping = false;
-    this.controls.enablePan = true;
+    this.controls.enablePan = false;
     this.controls.minDistance = 10;
     this.controls.maxDistance = 60;
     this.controls.maxPolarAngle = Math.PI * 0.47;
-    this.controls.addEventListener("change", () => {
-      this.centerGround();
-      this.render();
-    });
+    this.controls.addEventListener("change", () => this.render());
 
     const ambient = new THREE.HemisphereLight(0xebdbb2, 0x1d2021, 2.5);
     const key = new THREE.DirectionalLight(0xffffff, 3.5);
@@ -141,11 +99,55 @@ export class BoardView {
   update(state: GameState): void {
     this.cells.clear();
     this.targets.length = 1;
+    this.updateField(state.board);
     state.board.forEach((cell) => this.addCell(cell));
     if (this.selected && !state.board.some((cell) => cell.q === this.selected?.q && cell.r === this.selected?.r)) {
       this.addSelectionMarker(this.selected);
     }
     this.render();
+  }
+
+  private updateField(board: CellState[]): void {
+    if (this.field) {
+      this.scene.remove(this.field);
+      this.field.geometry.dispose();
+      if (Array.isArray(this.field.material)) {
+        this.field.material.forEach((material) => material.dispose());
+      } else {
+        this.field.material.dispose();
+      }
+    }
+
+    const qValues = board.map((cell) => cell.q);
+    const rValues = board.map((cell) => cell.r);
+    const minQ = (qValues.length ? Math.min(...qValues) : -1) - FIELD_PADDING;
+    const maxQ = (qValues.length ? Math.max(...qValues) : 1) + FIELD_PADDING;
+    const minR = (rValues.length ? Math.min(...rValues) : -1) - FIELD_PADDING;
+    const maxR = (rValues.length ? Math.max(...rValues) : 1) + FIELD_PADDING;
+    const columns = maxQ - minQ + 1;
+    const rows = maxR - minR + 1;
+    const field = new THREE.InstancedMesh(
+      new THREE.BoxGeometry(CELL_SIZE * 0.91, 0.045, CELL_SIZE * 0.91),
+      new THREE.MeshStandardMaterial({ color: 0x3c3836, roughness: 0.82, metalness: 0.02 }),
+      columns * rows,
+    );
+    const matrix = new THREE.Matrix4();
+    let instance = 0;
+    for (let q = minQ; q <= maxQ; q += 1) {
+      for (let r = minR; r <= maxR; r += 1) {
+        matrix.makeTranslation(q * CELL_SIZE, 0, r * CELL_SIZE);
+        field.setMatrixAt(instance, matrix);
+        instance += 1;
+      }
+    }
+    field.instanceMatrix.needsUpdate = true;
+    this.field = field;
+    this.scene.add(field);
+
+    const centerQ = (minQ + maxQ) / 2;
+    const centerR = (minR + maxR) / 2;
+    this.ground.position.set(centerQ * CELL_SIZE, -0.02, centerR * CELL_SIZE);
+    this.ground.scale.set(columns * CELL_SIZE, rows * CELL_SIZE, 1);
   }
 
   private addCell(cell: CellState): void {
@@ -254,14 +256,6 @@ export class BoardView {
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(width, height, false);
     this.render();
-  }
-
-  private centerGround(): void {
-    const x = Math.round(this.controls.target.x / CELL_SIZE) * CELL_SIZE;
-    const z = Math.round(this.controls.target.z / CELL_SIZE) * CELL_SIZE;
-    this.ground.position.set(x, -0.02, z);
-    this.field.position.set(x, 0, z);
-    this.grid.position.set(x, -0.01, z);
   }
 
   private render(): void {

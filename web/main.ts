@@ -22,7 +22,7 @@ app.innerHTML = `
     <ol><li>Place on any empty square; the field has no border.</li><li>Select your top-controlled stack, then an orthogonally adjacent square.</li><li>Carry up to five top tiles; stack height cannot exceed five.</li><li>Amber spans seven columns. Teal spans seven rows.</li></ol>
     <div class="titlebar">EVENT LOG</div><output id="log">SYSTEM READY</output>
   </aside>
-  <footer><span>CLICK: SELECT / PLACE</span><span>DRAG TILE: MOVE STACK</span><span>DRAG FIELD: ORBIT // SHIFT+DRAG: PAN</span><span>ESC: CANCEL</span></footer>`;
+  <footer><span>CLICK: SELECT / PLACE</span><span>DRAG TILE: MOVE STACK</span><span>DRAG FIELD: ORBIT</span><span>ESC: CANCEL</span></footer>`;
 
 function requireElement<T extends Element>(selector: string): T {
   const element = document.querySelector<T>(selector);
