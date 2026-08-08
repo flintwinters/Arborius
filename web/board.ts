@@ -41,6 +41,7 @@ const TILE_BASE_Y = 0.14;
 const SURFACE_CLEARANCE = 0.018;
 const CLICK_DISTANCE = 5;
 const FIELD_PADDING = 1;
+const tileIconTextures = new Map<string, THREE.CanvasTexture>();
 
 function worldPosition(q: number, r: number): THREE.Vector3 {
   return new THREE.Vector3(q * CELL_SIZE, 0, r * CELL_SIZE);
@@ -69,10 +70,14 @@ const FACING_ROTATION: Record<Facing, number> = {
   S: Math.PI,
   W: Math.PI / 2,
 };
+const FACING_VECTOR: Record<Facing, { x: number; z: number }> = {
+  N: { x: 0, z: -1 }, E: { x: 1, z: 0 }, S: { x: 0, z: 1 }, W: { x: -1, z: 0 },
+};
 
-function directionMarkerMaterial(): THREE.MeshBasicMaterial {
+function directionMarkerMaterial(map?: THREE.Texture): THREE.MeshBasicMaterial {
   return new THREE.MeshBasicMaterial({
     color: 0x26302d,
+    map,
     transparent: true,
     opacity: 0.44,
     depthWrite: false,
@@ -82,16 +87,83 @@ function directionMarkerMaterial(): THREE.MeshBasicMaterial {
 
 function createFacingArrow(tile: Tile): THREE.Mesh {
   const shape = new THREE.Shape();
-  shape.moveTo(0, 0.3);
-  shape.lineTo(-0.18, -0.2);
-  shape.lineTo(0.18, -0.2);
+  shape.moveTo(0, 0.085);
+  shape.lineTo(-0.045, -0.055);
+  shape.lineTo(0.045, -0.055);
   shape.closePath();
   const arrow = new THREE.Mesh(
     new THREE.ShapeGeometry(shape),
     directionMarkerMaterial(),
   );
   arrow.rotation.set(-Math.PI / 2, 0, FACING_ROTATION[tile.facing]);
+  const vector = FACING_VECTOR[tile.facing];
+  const edgeOffset = TILE_WIDTH / 2 - 0.1;
+  arrow.position.set(vector.x * edgeOffset, 0, vector.z * edgeOffset);
   return arrow;
+}
+
+function tileIconTexture(name: string): THREE.CanvasTexture {
+  const cached = tileIconTextures.get(name);
+  if (cached) return cached;
+  const canvas = document.createElement("canvas");
+  canvas.width = 128;
+  canvas.height = 128;
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Tile icon drawing is unavailable");
+  context.strokeStyle = "#ffffff";
+  context.fillStyle = "#ffffff";
+  context.lineWidth = 9;
+  context.lineCap = "round";
+  context.lineJoin = "round";
+  context.beginPath();
+  if (name === "horse") {
+    context.arc(64, 61, 31, Math.PI * 0.1, Math.PI * 0.9, true);
+    context.moveTo(34, 54); context.lineTo(34, 91);
+    context.moveTo(94, 54); context.lineTo(94, 91);
+  } else if (name === "vagrant") {
+    context.moveTo(42, 94); context.lineTo(68, 31); context.lineTo(87, 94);
+    context.moveTo(30, 70); context.lineTo(97, 70);
+  } else if (name === "castle") {
+    context.moveTo(30, 94); context.lineTo(30, 38); context.lineTo(47, 38);
+    context.lineTo(47, 53); context.lineTo(64, 53); context.lineTo(64, 38);
+    context.lineTo(81, 38); context.lineTo(81, 53); context.lineTo(98, 53);
+    context.lineTo(98, 94); context.closePath();
+  } else if (name === "soldier") {
+    context.moveTo(64, 28); context.lineTo(94, 42); context.lineTo(86, 80);
+    context.lineTo(64, 101); context.lineTo(42, 80); context.lineTo(34, 42);
+    context.closePath();
+  } else if (name === "demon") {
+    context.moveTo(31, 36); context.quadraticCurveTo(36, 68, 64, 92);
+    context.quadraticCurveTo(92, 68, 97, 36);
+    context.moveTo(42, 74); context.lineTo(52, 64);
+    context.moveTo(86, 74); context.lineTo(76, 64);
+  } else if (name === "sword") {
+    context.moveTo(35, 95); context.lineTo(89, 31);
+    context.moveTo(73, 31); context.lineTo(91, 29); context.lineTo(89, 47);
+    context.moveTo(38, 72); context.lineTo(57, 89);
+  } else if (name === "viking") {
+    context.arc(64, 67, 27, Math.PI, 0);
+    context.moveTo(37, 66); context.lineTo(28, 42); context.lineTo(45, 51);
+    context.moveTo(91, 66); context.lineTo(100, 42); context.lineTo(83, 51);
+    context.moveTo(37, 67); context.lineTo(42, 93); context.lineTo(86, 93); context.lineTo(91, 67);
+  } else {
+    context.arc(64, 64, 32, 0, Math.PI * 1.7);
+    context.arc(64, 64, 17, Math.PI * 1.7, Math.PI * 0.25, true);
+  }
+  context.stroke();
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  tileIconTextures.set(name, texture);
+  return texture;
+}
+
+function createTileIcon(tile: Tile): THREE.Mesh {
+  const icon = new THREE.Mesh(
+    new THREE.PlaneGeometry(TILE_WIDTH * 0.42, TILE_WIDTH * 0.42),
+    directionMarkerMaterial(tileIconTexture(tile.name)),
+  );
+  icon.rotation.x = -Math.PI / 2;
+  return icon;
 }
 
 const FACE_SPECS: Record<Facing, {
@@ -279,7 +351,9 @@ export class BoardView {
     this.placementGhost.add(tile);
     const arrow = createFacingArrow(tileState);
     arrow.position.y = tile.position.y + TILE_HEIGHT / 2 + 0.006;
-    this.placementGhost.add(arrow);
+    const icon = createTileIcon(tileState);
+    icon.position.y = arrow.position.y;
+    this.placementGhost.add(arrow, icon);
     this.placementGhost.position.copy(worldPosition(coordinate.q, coordinate.r));
   }
 
@@ -374,8 +448,10 @@ export class BoardView {
       this.cells.add(tile);
       this.targets.push(tile);
       const arrow = createFacingArrow(tileState);
-      arrow.position.set(position.x, tile.position.y + TILE_HEIGHT / 2 + 0.006, position.z);
-      this.cells.add(arrow);
+      arrow.position.add(new THREE.Vector3(position.x, tile.position.y + TILE_HEIGHT / 2 + 0.006, position.z));
+      const icon = createTileIcon(tileState);
+      icon.position.set(position.x, arrow.position.y, position.z);
+      this.cells.add(arrow, icon);
       this.cells.add(...createSideDirectionMarkers(tileState, tile.position));
       const rim = new THREE.LineSegments(
         new THREE.EdgesGeometry(tile.geometry),
@@ -554,7 +630,9 @@ export class BoardView {
       this.ghost.add(tile);
       const arrow = createFacingArrow(tileState);
       arrow.position.y = TILE_HEIGHT * (index + 1) + 0.006;
-      this.ghost.add(arrow);
+      const icon = createTileIcon(tileState);
+      icon.position.y = arrow.position.y;
+      this.ghost.add(arrow, icon);
     });
   }
 
