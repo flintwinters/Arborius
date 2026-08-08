@@ -36,11 +36,17 @@ const COLORS = {
 };
 const CELL_SIZE = 1.48;
 const TILE_HEIGHT = 0.28;
+const TILE_BASE_Y = 0.14;
+const SURFACE_CLEARANCE = 0.018;
 const CLICK_DISTANCE = 5;
 const FIELD_PADDING = 1;
 
 function worldPosition(q: number, r: number): THREE.Vector3 {
   return new THREE.Vector3(q * CELL_SIZE, 0, r * CELL_SIZE);
+}
+
+function stackSurfaceY(height: number): number {
+  return height > 0 ? TILE_BASE_Y + height * TILE_HEIGHT : 0;
 }
 
 const FACING_ROTATION: Record<Facing, number> = {
@@ -198,7 +204,7 @@ export class BoardView {
         metalness: 0.12,
       }),
     );
-    tile.position.y = 0.14 + TILE_HEIGHT * (destinationHeight + 0.5);
+    tile.position.y = TILE_BASE_Y + TILE_HEIGHT * (destinationHeight + 0.5);
     this.placementGhost.add(tile);
     const arrow = createFacingArrow(tileState);
     arrow.position.y = tile.position.y + TILE_HEIGHT / 2 + 0.006;
@@ -223,7 +229,7 @@ export class BoardView {
       const height = this.state?.board.find(
         (cell) => cell.q === coordinate.q && cell.r === coordinate.r,
       )?.stack.length ?? 0;
-      marker.position.y = 0.02 + height * TILE_HEIGHT;
+      marker.position.y = stackSurfaceY(height) + SURFACE_CLEARANCE;
       this.hints.add(marker);
     });
   }
@@ -291,7 +297,7 @@ export class BoardView {
           metalness: 0.12,
         }),
       );
-      tile.position.set(position.x, 0.14 + TILE_HEIGHT * (index + 0.5), position.z);
+      tile.position.set(position.x, TILE_BASE_Y + TILE_HEIGHT * (index + 0.5), position.z);
       tile.userData = { q, r, count: cell.stack.length - index, owner: tileState.owner };
       this.cells.add(tile);
       this.targets.push(tile);
@@ -489,7 +495,7 @@ export class BoardView {
     const position = worldPosition(destination.q, destination.r);
     this.ghost.position.set(
       pointer?.x ?? position.x,
-      0.14 + destinationHeight * TILE_HEIGHT,
+      TILE_BASE_Y + destinationHeight * TILE_HEIGHT,
       pointer?.z ?? position.z,
     );
     this.ghost.visible = true;
