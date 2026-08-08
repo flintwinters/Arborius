@@ -2,6 +2,8 @@
 
 Arborius is a compact, legible strategy game about controlling a living, unbounded orthogonal canopy. The implementation should make deep spatial play easy to read: the rules remain deterministic and server-authoritative while the Three.js board communicates height, ownership, and legal actions immediately. Its Hex influence is mechanical—connected spans—not geometric or bounded by board edges.
 
+User-facing copy must speak only in player and game terms. Never expose implementation details such as browsers, cookies, storage, sessions, APIs, servers, requests, or data recovery.
+
 # Architecture
 
 - `server/` is the FastAPI application and authoritative pure-Python rules engine.
@@ -11,6 +13,7 @@ Arborius is a compact, legible strategy game about controlling a living, unbound
 
 # Current tasks
 
+- Enforce player-facing language with an automated UI-copy vocabulary check.
 - Replace remaining prototype behavior with explicitly specified `rules.pdf` mechanics.
 - Implement forward Advance/Ascend/Descend and One Mind movement invariants.
 - Stage recursive Minds and abilities only after their unresolved rulebook semantics are decided.
