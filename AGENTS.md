@@ -13,7 +13,6 @@ User-facing copy must speak only in player and game terms. Never expose implemen
 
 # Current tasks
 
-- Enforce player-facing language with an automated UI-copy vocabulary check.
 - Replace remaining prototype behavior with explicitly specified `rules.pdf` mechanics.
 - Implement forward Advance/Ascend/Descend and One Mind movement invariants.
 - Stage recursive Minds and abilities only after their unresolved rulebook semantics are decided.
