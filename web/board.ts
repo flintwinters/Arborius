@@ -41,7 +41,6 @@ const TILE_BASE_Y = 0.14;
 const SURFACE_CLEARANCE = 0.018;
 const CLICK_DISTANCE = 5;
 const FIELD_PADDING = 1;
-const facingBadgeTextures = new Map<string, THREE.CanvasTexture>();
 
 function worldPosition(q: number, r: number): THREE.Vector3 {
   return new THREE.Vector3(q * CELL_SIZE, 0, r * CELL_SIZE);
@@ -85,53 +84,53 @@ function createFacingArrow(tile: Tile): THREE.Mesh {
   return arrow;
 }
 
-function facingBadgeTexture(tile: Tile): THREE.CanvasTexture {
-  const key = `${tile.facing}:${tile.frozen}`;
-  const cached = facingBadgeTextures.get(key);
-  if (cached) return cached;
+const FACE_SPECS: Record<Facing, {
+  x: number;
+  z: number;
+  rotation: number;
+  localRight: Facing;
+}> = {
+  N: { x: 0, z: -1, rotation: Math.PI, localRight: "W" },
+  E: { x: 1, z: 0, rotation: Math.PI / 2, localRight: "N" },
+  S: { x: 0, z: 1, rotation: 0, localRight: "E" },
+  W: { x: -1, z: 0, rotation: -Math.PI / 2, localRight: "S" },
+};
+const FACING_ORDER: Facing[] = ["N", "E", "S", "W"];
 
-  const canvas = document.createElement("canvas");
-  canvas.width = 128;
-  canvas.height = 64;
-  const context = canvas.getContext("2d");
-  if (!context) throw new Error("Facing badge drawing is unavailable");
-  const colors: Record<Facing, string> = {
-    N: "#397f9f", E: "#ba762e", S: "#a84e4a", W: "#71598f",
-  };
-  context.fillStyle = tile.frozen ? "#665c54" : colors[tile.facing];
-  context.fillRect(0, 0, canvas.width, canvas.height);
-  context.strokeStyle = "#f7efd9";
-  context.lineWidth = 5;
-  context.strokeRect(3, 3, canvas.width - 6, canvas.height - 6);
-  context.fillStyle = "#fff9e8";
-  context.font = "700 42px Segoe UI, sans-serif";
-  context.textAlign = "center";
-  context.textBaseline = "middle";
-  context.fillText(tile.facing, canvas.width / 2, canvas.height / 2 + 1);
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  facingBadgeTextures.set(key, texture);
-  return texture;
-}
-
-function createFacingBadges(tile: Tile, position: THREE.Vector3): THREE.Mesh[] {
-  const geometry = new THREE.PlaneGeometry(TILE_WIDTH * 0.3, TILE_HEIGHT * 0.58);
+function createSideDirectionMarkers(tile: Tile, position: THREE.Vector3): THREE.Mesh[] {
+  const facingIndex = FACING_ORDER.indexOf(tile.facing);
+  const left = FACING_ORDER[(facingIndex + 3) % 4];
+  const right = FACING_ORDER[(facingIndex + 1) % 4];
+  if (!left || !right) return [];
   const material = new THREE.MeshBasicMaterial({
-    map: facingBadgeTexture(tile),
+    color: tile.frozen ? 0x7c6f64 : 0xfff4cf,
     side: THREE.DoubleSide,
   });
   const offset = TILE_WIDTH / 2 + 0.004;
-  return [
-    { x: 0, z: -offset, rotation: Math.PI },
-    { x: offset, z: 0, rotation: Math.PI / 2 },
-    { x: 0, z: offset, rotation: 0 },
-    { x: -offset, z: 0, rotation: -Math.PI / 2 },
-  ].map(({ x, z, rotation }) => {
-    const badge = new THREE.Mesh(geometry, material);
-    badge.position.set(position.x + x, position.y, position.z + z);
-    badge.rotation.y = rotation;
-    return badge;
+  const markerForFace = (face: Facing, geometry: THREE.BufferGeometry): THREE.Mesh => {
+    const spec = FACE_SPECS[face];
+    const marker = new THREE.Mesh(geometry, material);
+    marker.position.set(position.x + spec.x * offset, position.y, position.z + spec.z * offset);
+    marker.rotation.y = spec.rotation;
+    return marker;
+  };
+
+  const dot = markerForFace(tile.facing, new THREE.CircleGeometry(TILE_HEIGHT * 0.13, 16));
+  const arrowShape = new THREE.Shape();
+  arrowShape.moveTo(TILE_HEIGHT * 0.25, 0);
+  arrowShape.lineTo(-TILE_HEIGHT * 0.08, TILE_HEIGHT * 0.16);
+  arrowShape.lineTo(-TILE_HEIGHT * 0.08, TILE_HEIGHT * 0.06);
+  arrowShape.lineTo(-TILE_HEIGHT * 0.25, TILE_HEIGHT * 0.06);
+  arrowShape.lineTo(-TILE_HEIGHT * 0.25, -TILE_HEIGHT * 0.06);
+  arrowShape.lineTo(-TILE_HEIGHT * 0.08, -TILE_HEIGHT * 0.06);
+  arrowShape.lineTo(-TILE_HEIGHT * 0.08, -TILE_HEIGHT * 0.16);
+  arrowShape.closePath();
+  const arrows = [left, right].map((face) => {
+    const arrow = markerForFace(face, new THREE.ShapeGeometry(arrowShape));
+    if (FACE_SPECS[face].localRight !== tile.facing) arrow.rotateZ(Math.PI);
+    return arrow;
   });
+  return [dot, ...arrows];
 }
 
 export class BoardView {
@@ -370,7 +369,7 @@ export class BoardView {
       const arrow = createFacingArrow(tileState);
       arrow.position.set(position.x, tile.position.y + TILE_HEIGHT / 2 + 0.006, position.z);
       this.cells.add(arrow);
-      this.cells.add(...createFacingBadges(tileState, tile.position));
+      this.cells.add(...createSideDirectionMarkers(tileState, tile.position));
       const rim = new THREE.LineSegments(
         new THREE.EdgesGeometry(tile.geometry),
         new THREE.LineBasicMaterial({
