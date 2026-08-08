@@ -31,6 +31,7 @@ const COLORS = {
   teal: 0x68bfa6,
   grid: 0x596b68,
   selected: 0xf19a4b,
+  hovered: 0xf6b95f,
   target: 0xc2d957,
 };
 const CELL_SIZE = 1.48;
@@ -83,6 +84,7 @@ export class BoardView {
   private field: THREE.LineSegments | null = null;
   private selected: BoardCoordinate | null = null;
   private selectedCount = 0;
+  private hovered: StackSelection | null = null;
   private destinations: BoardCoordinate[] = [];
   private placementPreview: PlacementPreview | null = null;
   private interaction: PointerInteraction | null = null;
@@ -137,6 +139,7 @@ export class BoardView {
 
     this.renderer.domElement.addEventListener("pointerdown", (event) => this.handlePointerDown(event));
     this.renderer.domElement.addEventListener("pointermove", (event) => this.handlePointerMove(event));
+    this.renderer.domElement.addEventListener("pointerleave", () => this.setHovered(null));
     this.renderer.domElement.addEventListener("pointercancel", () => this.cancelInteraction());
     this.renderer.domElement.addEventListener("pointerup", (event) => this.handlePointerUp(event));
     new ResizeObserver(() => this.resize()).observe(this.host);
@@ -146,10 +149,12 @@ export class BoardView {
   setSelected(coordinate: BoardCoordinate | null, count = 0): void {
     this.selected = coordinate;
     this.selectedCount = count;
+    if (coordinate) this.setHovered(null);
   }
 
   setDestinations(destinations: BoardCoordinate[]): void {
     this.destinations = destinations;
+    if (destinations.length > 0) this.setHovered(null);
   }
 
   setPlacementPreview(preview: PlacementPreview | null): void {
@@ -158,6 +163,7 @@ export class BoardView {
 
   update(state: GameState): void {
     this.state = state;
+    this.normalizeHovered();
     this.cells.clear();
     this.targets.length = 1;
     this.updateField(state.board);
@@ -274,17 +280,19 @@ export class BoardView {
     const position = worldPosition(q, r);
     const selected = this.selected?.q === q && this.selected.r === r;
     cell.stack.forEach((tileState, index) => {
+      const hovered = this.hovered?.q === q && this.hovered.r === r;
       const carried = selected && index >= cell.stack.length - this.selectedCount;
+      const previewed = hovered && index >= cell.stack.length - (this.hovered?.count ?? 0);
       const tile = new THREE.Mesh(
         new THREE.BoxGeometry(CELL_SIZE * 0.76, TILE_HEIGHT, CELL_SIZE * 0.76),
         new THREE.MeshStandardMaterial({
-          color: carried ? COLORS.selected : COLORS[tileState.owner],
+          color: carried ? COLORS.selected : previewed ? COLORS.hovered : COLORS[tileState.owner],
           roughness: 0.42,
           metalness: 0.12,
         }),
       );
       tile.position.set(position.x, 0.14 + TILE_HEIGHT * (index + 0.5), position.z);
-      tile.userData = { q, r, count: cell.stack.length - index };
+      tile.userData = { q, r, count: cell.stack.length - index, owner: tileState.owner };
       this.cells.add(tile);
       this.targets.push(tile);
       const arrow = createFacingArrow(tileState);
@@ -339,13 +347,71 @@ export class BoardView {
   }
 
   private handlePointerMove(event: PointerEvent): void {
-    if (!this.interaction?.selection) return;
     const hit = this.pick(event);
+    if (!this.interaction?.selection) {
+      this.previewSelection(hit);
+      return;
+    }
     if (!hit) {
       this.ghost.visible = false;
       return;
     }
     this.positionGhost(this.coordinateForHit(hit), hit.point);
+  }
+
+  private previewSelection(hit: THREE.Intersection<THREE.Mesh> | undefined): void {
+    if (this.selected || this.destinations.length > 0 || hit?.object === this.ground) {
+      this.setHovered(null);
+      return;
+    }
+    const count = hit?.object.userData.count as number | undefined;
+    if (!hit || !count) {
+      this.setHovered(null);
+      return;
+    }
+    const coordinate = this.coordinateForHit(hit);
+    const controller = this.state?.board.find(
+      (cell) => cell.q === coordinate.q && cell.r === coordinate.r,
+    )?.stack.at(-1);
+    if (controller?.owner !== this.state?.turn) {
+      this.setHovered(null);
+      return;
+    }
+    this.setHovered({ ...coordinate, count });
+  }
+
+  private setHovered(selection: StackSelection | null): void {
+    const unchanged = this.hovered?.q === selection?.q
+      && this.hovered?.r === selection?.r
+      && this.hovered?.count === selection?.count;
+    if (unchanged) return;
+    this.hovered = selection;
+    this.renderer.domElement.classList.toggle("selecting-stack", selection !== null);
+    this.updateTileHighlights();
+  }
+
+  private normalizeHovered(): void {
+    if (!this.hovered) return;
+    const stack = this.state?.board.find(
+      (cell) => cell.q === this.hovered?.q && cell.r === this.hovered?.r,
+    )?.stack;
+    if (!stack || stack.at(-1)?.owner !== this.state?.turn || this.hovered.count > stack.length) {
+      this.hovered = null;
+      this.renderer.domElement.classList.remove("selecting-stack");
+    }
+  }
+
+  private updateTileHighlights(): void {
+    this.targets.slice(1).forEach((tile) => {
+      const { q, r, count, owner } = tile.userData as {
+        q: number; r: number; count: number; owner: Tile["owner"];
+      };
+      const selected = this.selected?.q === q && this.selected.r === r && count <= this.selectedCount;
+      const hovered = this.hovered?.q === q && this.hovered.r === r && count <= this.hovered.count;
+      const material = tile.material as THREE.MeshStandardMaterial;
+      material.color.setHex(selected ? COLORS.selected : hovered ? COLORS.hovered : COLORS[owner]);
+    });
+    this.render();
   }
 
   private handlePointerUp(event: PointerEvent): void {
