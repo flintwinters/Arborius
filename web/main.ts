@@ -14,27 +14,22 @@ const app = document.querySelector<HTMLElement>("#app");
 if (!app) throw new Error("Application mount point is missing");
 
 app.innerHTML = `
-  <header><b>ARBORIUS</b><span>CANOPY COMMAND // ONLINE</span><span id="clock">TURN 000</span></header>
-  <section class="board-pane"><div class="titlebar">TACTICAL CANOPY // UNBOUNDED ORTHOGONAL FIELD</div><div id="board"></div></section>
+  <header><b>ARBORIUS</b><span id="turn"></span></header>
+  <main id="board"></main>
   <aside class="intel">
-    <div class="titlebar">GAME STATE</div>
-    <dl id="state"></dl>
-    <div class="titlebar">REVEALED ARMY</div>
+    <p id="state" class="state"></p>
+    <h2>Tiles</h2>
     <div id="reserve" class="reserve"></div>
-    <div class="titlebar">PLACEMENT ROTATION</div>
-    <div class="commands placement-rotation"><button id="placement-left" title="Rotate placement left (Q)">↶ Q</button><strong id="placement-facing">↑ N</strong><button id="placement-right" title="Rotate placement right (E)">E ↷</button></div>
-    <div class="commands facing" aria-label="Placement facing"><button data-facing="N">↑ N</button><button data-facing="E">→ E</button><button data-facing="S">↓ S</button><button data-facing="W">← W</button></div>
-    <div class="titlebar">STACK INSPECTOR</div>
-    <div id="inspect" class="readout">SELECT A CELL</div>
-    <div class="titlebar">ACTION BUFFER</div>
-    <label>CARRY COUNT <input id="carry" type="number" min="1" value="1"></label>
-    <div id="buffer" class="readout">PLACE MODE // SELECT EMPTY CELL</div>
-    <div class="commands"><button id="rotate-left">↶ ABILITY ROTATE</button><button id="rotate-right">↷ ABILITY ROTATE</button><button id="unplay">UNPLAY TOP</button><button id="scope">SCOPE: TOP</button><button id="cancel">ESC CANCEL</button><button id="reset">R RESET</button></div>
-    <div class="titlebar">RULE CORE</div>
-    <ol><li>Setup: Amber at center; Teal diagonally adjacent and opposite-facing.</li><li>Play beside a friendly tile and face it. Friendly stacking still needs a separate anchor.</li><li>Never play atop an enemy or toward a frozen anchor.</li><li>Unplay only an uncovered tile without splitting the One Mind.</li></ol>
-    <div class="titlebar">EVENT LOG</div><output id="log">SYSTEM READY</output>
-  </aside>
-  <footer><span>CLICK: SELECT / PLACE</span><span>Q / E: ROTATE PLACEMENT</span><span>DRAG TILE: MOVE STACK</span><span>ESC: CANCEL</span></footer>`;
+    <section id="placement-controls"><h2>Tile direction</h2>
+      <div class="commands facing" aria-label="Tile direction"><button data-facing="N">↑ North</button><button data-facing="E">→ East</button><button data-facing="S">↓ South</button><button data-facing="W">← West</button></div>
+    </section>
+    <section id="selection-controls" hidden><h2 id="selection-title">Selected stack</h2>
+      <label>Tiles to move <input id="carry" type="number" min="1" value="1"></label>
+      <div class="commands"><button id="rotate-left">↶ Rotate</button><button id="rotate-right">Rotate ↷</button><button id="unplay">Return top tile</button><button id="scope">Rotate top</button></div>
+    </section>
+    <output id="log" aria-live="polite"></output>
+    <div class="commands utility"><button id="cancel">Clear selection</button><button id="reset">New game</button></div>
+  </aside>`;
 
 function requireElement<T extends Element>(selector: string): T {
   const element = document.querySelector<T>(selector);
@@ -45,12 +40,12 @@ function requireElement<T extends Element>(selector: string): T {
 const boardHost = requireElement<HTMLElement>("#board");
 const stateNode = requireElement<HTMLElement>("#state");
 const reserveNode = requireElement<HTMLElement>("#reserve");
-const inspectNode = requireElement<HTMLElement>("#inspect");
-const bufferNode = requireElement<HTMLElement>("#buffer");
 const logNode = requireElement<HTMLOutputElement>("#log");
 const carryNode = requireElement<HTMLInputElement>("#carry");
-const clockNode = requireElement<HTMLElement>("#clock");
-const placementFacingNode = requireElement<HTMLElement>("#placement-facing");
+const turnNode = requireElement<HTMLElement>("#turn");
+const placementControlsNode = requireElement<HTMLElement>("#placement-controls");
+const selectionControlsNode = requireElement<HTMLElement>("#selection-controls");
+const selectionTitleNode = requireElement<HTMLElement>("#selection-title");
 
 let game: GameState;
 let selected: BoardCoordinate | null = null;
@@ -60,8 +55,6 @@ let placementFacing: Facing = "N";
 let rotateWholeStack = false;
 let busy = false;
 const oppositeFacing: Record<Facing, Facing> = { N: "S", E: "W", S: "N", W: "E" };
-const facings: readonly Facing[] = ["N", "E", "S", "W"];
-const facingArrows: Record<Facing, string> = { N: "↑", E: "→", S: "↓", W: "←" };
 const board = new BoardView(
   boardHost,
   (coordinate, count) => void choose(coordinate, count),
@@ -81,30 +74,22 @@ function selectDefaultSetupTile(): void {
 function render(): void {
   board.setSelected(selected, selectedCount);
   board.update(game);
-  clockNode.textContent = `TURN ${String(game.move_number).padStart(3, "0")}`;
-  const winner = game.winner ? `${playerLabel(game.winner)} VICTORY` : "ACTIVE";
-  const phase = game.move_number === 0 ? "SETUP // AMBER CENTER" : game.move_number === 1 ? "SETUP // TEAL DIAGONAL" : "PLAY";
-  stateNode.innerHTML = `<dt>ACTIVE</dt><dd class="${game.turn}">${playerLabel(game.turn)}</dd>
-    <dt>PHASE</dt><dd>${phase}</dd><dt>STATUS</dt><dd>${winner}</dd><dt>AMBER RESERVE</dt><dd>${game.reserves.amber.length}</dd>
-    <dt>TEAL RESERVE</dt><dd>${game.reserves.teal.length}</dd>`;
+  turnNode.textContent = `Turn ${game.move_number + 1}`;
+  const phase = game.move_number === 0 ? "Place at the center" : game.move_number === 1 ? "Place diagonally from the center" : "Choose a tile or stack";
+  stateNode.innerHTML = game.winner
+    ? `<strong>${playerLabel(game.winner)} wins</strong>`
+    : `<strong class="${game.turn}">${playerLabel(game.turn)}</strong> to move<br><span>${phase}</span>`;
   reserveNode.innerHTML = game.reserves[game.turn].map((tile) =>
     `<button data-tile-id="${tile.id}" aria-pressed="${selectedReserve === tile.id}">${tile.name.toUpperCase()}</button>`,
   ).join("");
-  placementFacingNode.textContent = `${facingArrows[placementFacing]} ${placementFacing}`;
   document.querySelectorAll<HTMLButtonElement>("[data-facing]").forEach((button) => {
     button.setAttribute("aria-pressed", String(button.dataset.facing === placementFacing));
   });
+  placementControlsNode.hidden = selectedReserve === null;
+  selectionControlsNode.hidden = selected === null;
   if (selected) {
     const stack = stackAt(selected);
-    inspectNode.textContent = `CELL ${selected.q},${selected.r} // HEIGHT ${stack.length} // ${stack.length ? stack.map((tile) => `${tile.name.toUpperCase()}:${playerLabel(tile.owner)}:${tile.facing}${tile.frozen ? ":FROZEN" : ""}`).join(" > ") : "EMPTY"}`;
-    bufferNode.textContent = stack.length
-      ? `MOVE ${selectedCount} FROM ${selected.q},${selected.r} // CLICK OR DRAG TO DESTINATION`
-      : "PLACE MODE // SELECT EMPTY CELL";
-  } else {
-    inspectNode.textContent = "SELECT A CELL";
-    bufferNode.textContent = selectedReserve
-      ? `PLAY ${selectedReserve.toUpperCase()} // FACING ${placementFacing}`
-      : "SELECT A RESERVE TILE OR BOARD STACK";
+    selectionTitleNode.textContent = `${stack.at(-1)?.name ?? "Stack"} · ${stack.length} tile${stack.length === 1 ? "" : "s"}`;
   }
 }
 
@@ -116,7 +101,7 @@ async function submit(action: GameAction): Promise<void> {
     if (action.type === "place" && game.move_number === 1) {
       placementFacing = oppositeFacing[action.facing];
     }
-    logNode.textContent = `${playerLabel(action.player)} ${action.type.toUpperCase()} ACCEPTED`;
+    logNode.textContent = "";
     selected = null;
     selectedCount = 0;
     selectedReserve = null;
@@ -150,7 +135,7 @@ async function choose(coordinate: BoardCoordinate, count?: number): Promise<void
       carryNode.value = String(selectedCount);
       render();
     } else {
-      logNode.textContent = "REJECTED // OPPONENT CONTROLS THAT STACK";
+      logNode.textContent = "That stack belongs to the other player.";
     }
     return;
   }
@@ -179,7 +164,7 @@ async function move(
   const stack = stackAt(source);
   if (game.winner || busy) return;
   if (stack.at(-1)?.owner !== game.turn) {
-    logNode.textContent = "REJECTED // OPPONENT CONTROLS THAT STACK";
+    logNode.textContent = "That stack belongs to the other player.";
     return;
   }
   selected = source;
@@ -208,7 +193,7 @@ async function reset(): Promise<void> {
   selectedCount = 0;
   selectedReserve = null;
   selectDefaultSetupTile();
-  logNode.textContent = "MATCH RESET // AMBER TO MOVE";
+  logNode.textContent = "";
   render();
 }
 
@@ -228,22 +213,13 @@ document.querySelectorAll<HTMLButtonElement>("[data-facing]").forEach((button) =
     render();
   });
 });
-function rotatePlacement(quarterTurns: -1 | 1): void {
-  const facingIndex = facings.indexOf(placementFacing);
-  const rotatedFacing = facings[(facingIndex + quarterTurns + facings.length) % facings.length];
-  if (!rotatedFacing) throw new Error("Placement rotation produced an invalid facing");
-  placementFacing = rotatedFacing;
-  render();
-}
-document.querySelector("#placement-left")?.addEventListener("click", () => rotatePlacement(-1));
-document.querySelector("#placement-right")?.addEventListener("click", () => rotatePlacement(1));
 document.querySelector("#scope")?.addEventListener("click", () => {
   rotateWholeStack = !rotateWholeStack;
-  requireElement<HTMLButtonElement>("#scope").textContent = `SCOPE: ${rotateWholeStack ? "STACK" : "TOP"}`;
+  requireElement<HTMLButtonElement>("#scope").textContent = `Rotate ${rotateWholeStack ? "stack" : "top"}`;
 });
 async function rotate(quarterTurns: -1 | 1): Promise<void> {
   if (!selected) {
-    logNode.textContent = "REJECTED // SELECT A CONTROLLED STACK";
+    logNode.textContent = "Select one of your stacks first.";
     return;
   }
   await submit({
@@ -259,7 +235,7 @@ document.querySelector("#rotate-left")?.addEventListener("click", () => void rot
 document.querySelector("#rotate-right")?.addEventListener("click", () => void rotate(1));
 document.querySelector("#unplay")?.addEventListener("click", () => {
   if (!selected) {
-    logNode.textContent = "REJECTED // SELECT A CONTROLLED STACK";
+    logNode.textContent = "Select one of your stacks first.";
     return;
   }
   void submit({ type: "unplay", player: game.turn, q: selected.q, r: selected.r });
@@ -271,18 +247,10 @@ carryNode.addEventListener("change", () => {
   carryNode.value = String(selectedCount);
   render();
 });
-document.addEventListener("keydown", (event) => {
-  if (event.target instanceof HTMLInputElement) return;
-  if (event.key === "Escape") cancel();
-  if (event.key.toLowerCase() === "q") rotatePlacement(-1);
-  if (event.key.toLowerCase() === "e") rotatePlacement(1);
-  if (event.key.toLowerCase() === "r") void reset();
-});
-
 gameApi.load().then((loaded) => {
   game = loaded;
   selectDefaultSetupTile();
   render();
 }).catch((error: unknown) => {
-  logNode.textContent = `OFFLINE // ${error instanceof Error ? error.message : "API UNAVAILABLE"}`;
+  logNode.textContent = error instanceof Error ? error.message : "The game could not be loaded.";
 });
