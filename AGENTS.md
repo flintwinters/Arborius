@@ -13,7 +13,6 @@ User-facing copy must speak only in player and game terms. Never expose implemen
 
 # Current tasks
 
-- Move placement orientation and confirmation into contextual controls on the 3D board.
 - Replace remaining prototype behavior with explicitly specified `rules.pdf` mechanics.
 - Implement forward Advance/Ascend/Descend and One Mind movement invariants.
 - Stage recursive Minds and abilities only after their unresolved rulebook semantics are decided.
