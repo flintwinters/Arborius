@@ -68,6 +68,12 @@ function stackAt(coordinate: BoardCoordinate) {
   return game.board.find((cell) => cell.q === coordinate.q && cell.r === coordinate.r)?.stack ?? [];
 }
 
+function selectDefaultSetupTile(): void {
+  if (game.move_number < 2 && selectedReserve === null) {
+    selectedReserve = game.reserves[game.turn][0]?.id ?? null;
+  }
+}
+
 function render(): void {
   board.setSelected(selected, selectedCount);
   board.update(game);
@@ -106,6 +112,7 @@ async function submit(action: GameAction): Promise<void> {
     selected = null;
     selectedCount = 0;
     selectedReserve = null;
+    selectDefaultSetupTile();
   } catch (error) {
     logNode.textContent = `REJECTED // ${error instanceof Error ? error.message : "UNKNOWN ERROR"}`;
   } finally {
@@ -192,6 +199,7 @@ async function reset(): Promise<void> {
   selected = null;
   selectedCount = 0;
   selectedReserve = null;
+  selectDefaultSetupTile();
   logNode.textContent = "MATCH RESET // AMBER TO MOVE";
   render();
 }
@@ -253,6 +261,7 @@ document.addEventListener("keydown", (event) => {
 
 gameApi.load().then((loaded) => {
   game = loaded;
+  selectDefaultSetupTile();
   render();
 }).catch((error: unknown) => {
   logNode.textContent = `OFFLINE // ${error instanceof Error ? error.message : "API UNAVAILABLE"}`;
