@@ -21,8 +21,9 @@ app.innerHTML = `
     <dl id="state"></dl>
     <div class="titlebar">REVEALED ARMY</div>
     <div id="reserve" class="reserve"></div>
-    <div class="titlebar">PLACEMENT FACING</div>
-    <div class="commands facing"><button data-facing="N">↑ N</button><button data-facing="E">→ E</button><button data-facing="S">↓ S</button><button data-facing="W">← W</button></div>
+    <div class="titlebar">PLACEMENT ROTATION</div>
+    <div class="commands placement-rotation"><button id="placement-left" title="Rotate placement left (Q)">↶ Q</button><strong id="placement-facing">↑ N</strong><button id="placement-right" title="Rotate placement right (E)">E ↷</button></div>
+    <div class="commands facing" aria-label="Placement facing"><button data-facing="N">↑ N</button><button data-facing="E">→ E</button><button data-facing="S">↓ S</button><button data-facing="W">← W</button></div>
     <div class="titlebar">STACK INSPECTOR</div>
     <div id="inspect" class="readout">SELECT A CELL</div>
     <div class="titlebar">ACTION BUFFER</div>
@@ -33,7 +34,7 @@ app.innerHTML = `
     <ol><li>Setup: Amber at center; Teal diagonally adjacent and opposite-facing.</li><li>Play beside a friendly tile and face it. Friendly stacking still needs a separate anchor.</li><li>Never play atop an enemy or toward a frozen anchor.</li><li>Unplay only an uncovered tile without splitting the One Mind.</li></ol>
     <div class="titlebar">EVENT LOG</div><output id="log">SYSTEM READY</output>
   </aside>
-  <footer><span>CLICK: SELECT / PLACE</span><span>DRAG TILE: MOVE STACK</span><span>DRAG FIELD: ORBIT</span><span>ESC: CANCEL</span></footer>`;
+  <footer><span>CLICK: SELECT / PLACE</span><span>Q / E: ROTATE PLACEMENT</span><span>DRAG TILE: MOVE STACK</span><span>ESC: CANCEL</span></footer>`;
 
 function requireElement<T extends Element>(selector: string): T {
   const element = document.querySelector<T>(selector);
@@ -49,6 +50,7 @@ const bufferNode = requireElement<HTMLElement>("#buffer");
 const logNode = requireElement<HTMLOutputElement>("#log");
 const carryNode = requireElement<HTMLInputElement>("#carry");
 const clockNode = requireElement<HTMLElement>("#clock");
+const placementFacingNode = requireElement<HTMLElement>("#placement-facing");
 
 let game: GameState;
 let selected: BoardCoordinate | null = null;
@@ -58,6 +60,8 @@ let placementFacing: Facing = "N";
 let rotateWholeStack = false;
 let busy = false;
 const oppositeFacing: Record<Facing, Facing> = { N: "S", E: "W", S: "N", W: "E" };
+const facings: readonly Facing[] = ["N", "E", "S", "W"];
+const facingArrows: Record<Facing, string> = { N: "↑", E: "→", S: "↓", W: "←" };
 const board = new BoardView(
   boardHost,
   (coordinate, count) => void choose(coordinate, count),
@@ -86,6 +90,10 @@ function render(): void {
   reserveNode.innerHTML = game.reserves[game.turn].map((tile) =>
     `<button data-tile-id="${tile.id}" aria-pressed="${selectedReserve === tile.id}">${tile.name.toUpperCase()}</button>`,
   ).join("");
+  placementFacingNode.textContent = `${facingArrows[placementFacing]} ${placementFacing}`;
+  document.querySelectorAll<HTMLButtonElement>("[data-facing]").forEach((button) => {
+    button.setAttribute("aria-pressed", String(button.dataset.facing === placementFacing));
+  });
   if (selected) {
     const stack = stackAt(selected);
     inspectNode.textContent = `CELL ${selected.q},${selected.r} // HEIGHT ${stack.length} // ${stack.length ? stack.map((tile) => `${tile.name.toUpperCase()}:${playerLabel(tile.owner)}:${tile.facing}${tile.frozen ? ":FROZEN" : ""}`).join(" > ") : "EMPTY"}`;
@@ -220,6 +228,15 @@ document.querySelectorAll<HTMLButtonElement>("[data-facing]").forEach((button) =
     render();
   });
 });
+function rotatePlacement(quarterTurns: -1 | 1): void {
+  const facingIndex = facings.indexOf(placementFacing);
+  const rotatedFacing = facings[(facingIndex + quarterTurns + facings.length) % facings.length];
+  if (!rotatedFacing) throw new Error("Placement rotation produced an invalid facing");
+  placementFacing = rotatedFacing;
+  render();
+}
+document.querySelector("#placement-left")?.addEventListener("click", () => rotatePlacement(-1));
+document.querySelector("#placement-right")?.addEventListener("click", () => rotatePlacement(1));
 document.querySelector("#scope")?.addEventListener("click", () => {
   rotateWholeStack = !rotateWholeStack;
   requireElement<HTMLButtonElement>("#scope").textContent = `SCOPE: ${rotateWholeStack ? "STACK" : "TOP"}`;
@@ -255,7 +272,10 @@ carryNode.addEventListener("change", () => {
   render();
 });
 document.addEventListener("keydown", (event) => {
+  if (event.target instanceof HTMLInputElement) return;
   if (event.key === "Escape") cancel();
+  if (event.key.toLowerCase() === "q") rotatePlacement(-1);
+  if (event.key.toLowerCase() === "e") rotatePlacement(1);
   if (event.key.toLowerCase() === "r") void reset();
 });
 
