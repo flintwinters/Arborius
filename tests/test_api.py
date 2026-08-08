@@ -3,7 +3,9 @@ import asyncio
 import httpx
 import pytest
 
+import server.app as app_module
 from server.app import app
+from server.game import Facing, Game, Player, Tile
 
 
 class ApiClient:
@@ -115,6 +117,37 @@ def test_rule_violation_is_400_without_mutation(client: ApiClient) -> None:
     assert response.status_code == 400
     assert "amber's turn" in response.json()["detail"]
     assert client.get("/api/game").json() == before
+
+
+def test_action_reports_winner_when_opponent_has_no_legal_action(
+    client: ApiClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        app_module,
+        "game",
+        Game(
+            board={(0, 0): [Tile("teal-horse", "horse", Player.TEAL)]},
+            turn=Player.TEAL,
+            reserves={Player.AMBER: [], Player.TEAL: []},
+            move_number=2,
+        ),
+    )
+
+    response = client.post(
+        "/api/game/actions",
+        json={
+            "type": "rotate",
+            "player": "teal",
+            "q": 0,
+            "r": 0,
+            "quarter_turns": 1,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["turn"] == "amber"
+    assert response.json()["winner"] == "teal"
+    assert response.json()["board"][0]["stack"][0]["facing"] == Facing.EAST
 
 
 @pytest.mark.parametrize(

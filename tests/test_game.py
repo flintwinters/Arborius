@@ -225,7 +225,13 @@ def test_move_requires_orthogonal_adjacency_control_and_valid_count() -> None:
 def test_rotate_top_or_whole_stack_preserves_order() -> None:
     lower = tile("teal-horse", Player.TEAL, Facing.NORTH)
     upper = tile("amber-horse", Player.AMBER, Facing.EAST)
-    game = Game(board={(0, 0): [lower, upper]}, move_number=2)
+    game = Game(
+        board={
+            (0, 0): [lower, upper],
+            (1, 1): [tile("teal-goar", Player.TEAL)],
+        },
+        move_number=2,
+    )
     game.apply(Player.AMBER, RotateAction(0, 0, 1))
     assert [item.facing for item in game.board[(0, 0)]] == [Facing.NORTH, Facing.SOUTH]
 
@@ -282,3 +288,43 @@ def test_serialization_contains_complete_tiles_and_no_invented_limits() -> None:
         "frozen": False,
     }
     assert state["winner"] is None
+
+
+def test_player_with_any_legal_action_has_not_lost() -> None:
+    game = Game(
+        board={(0, 0): [tile("amber-horse", Player.AMBER, Facing.EAST)]},
+        reserves={Player.AMBER: [], Player.TEAL: []},
+        move_number=2,
+    )
+    assert game.has_valid_action(Player.AMBER)
+    assert not game.has_valid_action(Player.TEAL)
+
+
+def test_player_wins_when_action_leaves_opponent_without_a_legal_action() -> None:
+    game = Game(
+        board={(0, 0): [tile("teal-horse", Player.TEAL)]},
+        turn=Player.TEAL,
+        reserves={Player.AMBER: [], Player.TEAL: []},
+        move_number=2,
+    )
+
+    game.apply(Player.TEAL, RotateAction(0, 0, 1))
+
+    assert game.turn is Player.AMBER
+    assert game.winner is Player.TEAL
+    with pytest.raises(GameRuleError, match="already over"):
+        game.apply(Player.AMBER, UnplayAction(0, 0))
+
+
+def test_frozen_connectivity_bridge_does_not_count_as_a_legal_action() -> None:
+    game = Game(
+        board={
+            (-1, 0): [tile("teal-left", Player.TEAL)],
+            (0, 0): [tile("amber-bridge", Player.AMBER, frozen=True)],
+            (1, 0): [tile("teal-right", Player.TEAL)],
+        },
+        reserves={Player.AMBER: [], Player.TEAL: []},
+        move_number=2,
+    )
+
+    assert not game.has_valid_action(Player.AMBER)

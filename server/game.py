@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from copy import deepcopy
 from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from typing import Final
@@ -144,6 +146,24 @@ class Game:
         if player is not self.turn:
             raise GameRuleError(f"it is {self.turn.value}'s turn")
 
+        self._perform(player, action)
+
+        self.move_number += 1
+        self.turn = player.opponent
+        self.winner = player if not self.has_valid_action(self.turn) else None
+
+    def has_valid_action(self, player: Player) -> bool:
+        """Return whether player can perform any complete legal turn action."""
+        for action in self._candidate_actions(player):
+            trial = deepcopy(self)
+            try:
+                trial._perform(player, action)
+            except GameRuleError:
+                continue
+            return True
+        return False
+
+    def _perform(self, player: Player, action: Action) -> None:
         if isinstance(action, PlaceAction):
             self._place(player, action)
         elif isinstance(action, MoveAction):
@@ -153,10 +173,37 @@ class Game:
         else:
             self._unplay(player, (action.q, action.r))
 
-        self.move_number += 1
-        # The complete no-action condition depends on tile abilities not yet implemented.
-        self.winner = None
-        self.turn = player.opponent
+    def _candidate_actions(self, player: Player) -> Iterator[Action]:
+        """Yield the finite action space; rule methods remain the legality authority."""
+        for coord, stack in self.board.items():
+            if stack[-1].owner is not player:
+                continue
+            destination = _offset(coord, stack[-1].facing.vector)
+            for count in range(1, len(stack) + 1):
+                yield MoveAction(coord, destination, count)
+            yield RotateAction(*coord, -1)
+            yield RotateAction(*coord, 1)
+            yield RotateAction(*coord, -1, whole_stack=True)
+            yield RotateAction(*coord, 1, whole_stack=True)
+            yield UnplayAction(*coord)
+
+        if not self.reserves[player]:
+            return
+        if self.move_number == 0:
+            destinations = ((0, 0),)
+        elif self.move_number == 1:
+            destinations = ((-1, -1), (-1, 1), (1, -1), (1, 1))
+        else:
+            destinations = tuple(
+                _offset(coord, (-facing.vector[0], -facing.vector[1]))
+                for coord, stack in self.board.items()
+                if stack[-1].owner is player and not stack[-1].frozen
+                for facing in Facing
+            )
+        for tile in self.reserves[player]:
+            for q, r in destinations:
+                for facing in Facing:
+                    yield PlaceAction(tile.id, q, r, facing)
 
     def _place(self, player: Player, action: PlaceAction) -> None:
         reserve = self.reserves[player]
