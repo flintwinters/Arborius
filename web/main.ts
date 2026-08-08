@@ -251,6 +251,6 @@ gameApi.load().then((loaded) => {
   game = loaded;
   selectDefaultSetupTile();
   render();
-}).catch((error: unknown) => {
-  logNode.textContent = error instanceof Error ? error.message : "The game could not be loaded.";
+}).catch(() => {
+  logNode.textContent = "The game is unavailable. Try again.";
 });

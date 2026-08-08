@@ -38,7 +38,12 @@ export type GameAction =
   | { type: "unplay"; player: Player; q: number; r: number };
 
 async function request(path: string, init?: RequestInit): Promise<GameState> {
-  const response = await fetch(path, init);
+  let response: Response;
+  try {
+    response = await fetch(path, init);
+  } catch {
+    throw new Error("The game is unavailable. Try again.");
+  }
   const body = (await response.json()) as GameState | { detail?: string };
   if (!response.ok) {
     throw new Error("detail" in body ? body.detail ?? "Action rejected" : "Action rejected");
