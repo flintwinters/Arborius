@@ -86,9 +86,12 @@ function legalPlacementFacings(coordinate: BoardCoordinate): Facing[] {
 
 function destinations(): BoardCoordinate[] {
   if (selected) {
-    const facing = stackAt(selected).at(-1)?.facing;
-    const vector = facing ? facingVector[facing] : null;
-    return vector ? [{ q: selected.q + vector.q, r: selected.r + vector.r }] : [];
+    const source = selected;
+    return game.legal_moves
+      .filter((move) => move.from_q === source.q
+        && move.from_r === source.r
+        && move.count === selectedCount)
+      .map((move) => ({ q: move.to_q, r: move.to_r }));
   }
   if (!selectedReserve) return [];
   if (game.move_number === 0) return [{ q: 0, r: 0 }];

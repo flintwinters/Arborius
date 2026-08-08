@@ -61,6 +61,7 @@ def test_get_reset_and_full_tile_schema(client: ApiClient) -> None:
         "frozen": False,
     }
     assert state["board"] == []
+    assert state["legal_moves"] == []
     place(client, "amber", "amber-horse", 0, 0, "E")
     assert client.post("/api/game/reset").json()["board"] == []
 

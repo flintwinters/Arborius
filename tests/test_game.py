@@ -160,6 +160,24 @@ def test_move_rejects_destination_more_than_one_above_base() -> None:
         game.apply(Player.AMBER, MoveAction((0, 0), (1, 0), 1))
 
 
+def test_valid_moves_excludes_carry_suffix_that_would_climb_too_high() -> None:
+    source = [
+        tile("amber-base-a", Player.AMBER),
+        tile("amber-base-b", Player.AMBER),
+        tile("amber-controller", Player.AMBER, Facing.EAST),
+    ]
+    destination = [tile(f"teal-{index}", Player.TEAL) for index in range(3)]
+    game = Game(
+        board={(0, 0): source, (1, 0): destination},
+        reserves={Player.AMBER: [], Player.TEAL: []},
+        move_number=2,
+    )
+
+    legal_counts = {move.count for move in game.valid_moves(Player.AMBER)}
+
+    assert legal_counts == {1}
+
+
 def test_move_rejects_frozen_controlling_top() -> None:
     game = Game(
         board={

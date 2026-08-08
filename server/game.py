@@ -154,14 +154,28 @@ class Game:
 
     def has_valid_action(self, player: Player) -> bool:
         """Return whether player can perform any complete legal turn action."""
-        for action in self._candidate_actions(player):
-            trial = deepcopy(self)
-            try:
-                trial._perform(player, action)
-            except GameRuleError:
-                continue
-            return True
-        return False
+        return any(
+            self._is_valid_action(player, action)
+            for action in self._candidate_actions(player)
+        )
+
+    def valid_moves(self, player: Player) -> list[MoveAction]:
+        """Return fully validated moves for the player's selectable stack suffixes."""
+        if self.winner is not None:
+            return []
+        return [
+            action
+            for action in self._candidate_actions(player)
+            if isinstance(action, MoveAction) and self._is_valid_action(player, action)
+        ]
+
+    def _is_valid_action(self, player: Player, action: Action) -> bool:
+        trial = deepcopy(self)
+        try:
+            trial._perform(player, action)
+        except GameRuleError:
+            return False
+        return True
 
     def _perform(self, player: Player, action: Action) -> None:
         if isinstance(action, PlaceAction):
@@ -335,4 +349,14 @@ class Game:
                 for player, reserve in self.reserves.items()
             },
             "board": cells,
+            "legal_moves": [
+                {
+                    "from_q": action.source[0],
+                    "from_r": action.source[1],
+                    "to_q": action.destination[0],
+                    "to_r": action.destination[1],
+                    "count": action.count,
+                }
+                for action in self.valid_moves(self.turn)
+            ],
         }

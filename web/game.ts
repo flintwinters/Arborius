@@ -21,6 +21,13 @@ export interface GameState {
   move_number: number;
   reserves: Record<Player, Tile[]>;
   board: CellState[];
+  legal_moves: Array<{
+    from_q: number;
+    from_r: number;
+    to_q: number;
+    to_r: number;
+    count: number;
+  }>;
 }
 
 export type GameAction =
