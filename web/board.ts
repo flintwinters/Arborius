@@ -23,6 +23,7 @@ const COLORS = {
   teal: 0x8ec07c,
   grid: 0x928374,
   selected: 0xfe8019,
+  target: 0xb8bb26,
 };
 const CELL_SIZE = 1.48;
 const TILE_HEIGHT = 0.28;
@@ -63,6 +64,7 @@ export class BoardView {
   private readonly pointer = new THREE.Vector2();
   private readonly cells = new THREE.Group();
   private readonly ghost = new THREE.Group();
+  private readonly hints = new THREE.Group();
   private readonly targets: THREE.Mesh[] = [];
   private readonly ground = new THREE.Mesh(
     new THREE.PlaneGeometry(1, 1),
@@ -71,6 +73,7 @@ export class BoardView {
   private field: THREE.LineSegments | null = null;
   private selected: BoardCoordinate | null = null;
   private selectedCount = 0;
+  private destinations: BoardCoordinate[] = [];
   private interaction: PointerInteraction | null = null;
   private state: GameState | null = null;
 
@@ -86,7 +89,7 @@ export class BoardView {
     this.scene.background = new THREE.Color(0x1d2021);
     this.ground.rotation.x = -Math.PI / 2;
     this.ground.position.y = -0.02;
-    this.scene.add(this.ground, this.cells, this.ghost);
+    this.scene.add(this.ground, this.hints, this.cells, this.ghost);
     this.targets.push(this.ground);
     this.camera.position.set(9.5, 11.5, 12.5);
     this.camera.lookAt(0, 0, 0);
@@ -120,16 +123,43 @@ export class BoardView {
     this.selectedCount = count;
   }
 
+  setDestinations(destinations: BoardCoordinate[]): void {
+    this.destinations = destinations;
+  }
+
   update(state: GameState): void {
     this.state = state;
     this.cells.clear();
     this.targets.length = 1;
     this.updateField(state.board);
+    this.updateHints();
     state.board.forEach((cell) => this.addCell(cell));
     if (this.selected && !state.board.some((cell) => cell.q === this.selected?.q && cell.r === this.selected?.r)) {
       this.addSelectionMarker(this.selected);
     }
     this.render();
+  }
+
+  private updateHints(): void {
+    this.hints.clear();
+    this.destinations.forEach((coordinate) => {
+      const marker = new THREE.Mesh(
+        new THREE.RingGeometry(CELL_SIZE * 0.31, CELL_SIZE * 0.41, 4),
+        new THREE.MeshBasicMaterial({
+          color: COLORS.target,
+          transparent: true,
+          opacity: 0.86,
+          side: THREE.DoubleSide,
+        }),
+      );
+      marker.rotation.set(-Math.PI / 2, 0, Math.PI / 4);
+      marker.position.copy(worldPosition(coordinate.q, coordinate.r));
+      const height = this.state?.board.find(
+        (cell) => cell.q === coordinate.q && cell.r === coordinate.r,
+      )?.stack.length ?? 0;
+      marker.position.y = 0.02 + height * TILE_HEIGHT;
+      this.hints.add(marker);
+    });
   }
 
   private updateField(board: CellState[]): void {
