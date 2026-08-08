@@ -273,7 +273,6 @@ export class BoardView {
     if (selection) {
       this.controls.enabled = false;
       this.renderer.domElement.setPointerCapture(event.pointerId);
-      this.onCell(selection, count);
       this.createGhost(selection);
       this.positionGhost(selection);
     }
