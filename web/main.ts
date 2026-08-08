@@ -154,7 +154,7 @@ function render(): void {
   logNode.textContent = notice?.text ?? "";
   logNode.className = `notice${notice ? ` ${notice.kind}` : ""}`;
   reserveNode.innerHTML = game.reserves[game.turn].map((tile) =>
-    `<button data-tile-id="${tile.id}" aria-pressed="${selectedReserve === tile.id}">${tile.name.toUpperCase()}</button>`,
+    `<button data-tile-id="${tile.id}" aria-pressed="${selectedReserve === tile.id}">${tile.name}</button>`,
   ).join("");
   selectionControlsNode.hidden = selected === null;
   document.querySelectorAll<HTMLButtonElement>("button").forEach((button) => {

@@ -27,11 +27,11 @@ interface PointerInteraction {
 }
 
 const COLORS = {
-  amber: 0xfabd2f,
-  teal: 0x8ec07c,
-  grid: 0x928374,
-  selected: 0xfe8019,
-  target: 0xb8bb26,
+  amber: 0xf4c84a,
+  teal: 0x68bfa6,
+  grid: 0x596b68,
+  selected: 0xf19a4b,
+  target: 0xc2d957,
 };
 const CELL_SIZE = 1.48;
 const TILE_HEIGHT = 0.28;
@@ -98,7 +98,7 @@ export class BoardView {
     ) => void,
     private readonly onPlacementControl: (action: PlacementControlAction) => void,
   ) {
-    this.scene.background = new THREE.Color(0x1d2021);
+    this.scene.background = new THREE.Color(0x171c1d);
     this.ground.rotation.x = -Math.PI / 2;
     this.ground.position.y = -0.02;
     this.scene.add(this.ground, this.hints, this.cells, this.placementGhost, this.ghost);
