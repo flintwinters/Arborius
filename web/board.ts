@@ -35,11 +35,13 @@ const COLORS = {
   target: 0xc2d957,
 };
 const CELL_SIZE = 1.48;
+const TILE_WIDTH = CELL_SIZE * 0.76;
 const TILE_HEIGHT = 0.28;
 const TILE_BASE_Y = 0.14;
 const SURFACE_CLEARANCE = 0.018;
 const CLICK_DISTANCE = 5;
 const FIELD_PADDING = 1;
+const facingBadgeTextures = new Map<string, THREE.CanvasTexture>();
 
 function worldPosition(q: number, r: number): THREE.Vector3 {
   return new THREE.Vector3(q * CELL_SIZE, 0, r * CELL_SIZE);
@@ -47,6 +49,19 @@ function worldPosition(q: number, r: number): THREE.Vector3 {
 
 function stackSurfaceY(height: number): number {
   return height > 0 ? TILE_BASE_Y + height * TILE_HEIGHT : 0;
+}
+
+function createTileGeometry(): THREE.BoxGeometry {
+  const geometry = new THREE.BoxGeometry(TILE_WIDTH, TILE_HEIGHT, TILE_WIDTH);
+  const positions = geometry.getAttribute("position");
+  const shades: number[] = [];
+  for (let index = 0; index < positions.count; index += 1) {
+    const heightRatio = positions.getY(index) / TILE_HEIGHT + 0.5;
+    const shade = 0.94 + heightRatio * 0.06;
+    shades.push(shade, shade, shade);
+  }
+  geometry.setAttribute("color", new THREE.Float32BufferAttribute(shades, 3));
+  return geometry;
 }
 
 const FACING_ROTATION: Record<Facing, number> = {
@@ -68,6 +83,55 @@ function createFacingArrow(tile: Tile): THREE.Mesh {
   );
   arrow.rotation.set(-Math.PI / 2, 0, FACING_ROTATION[tile.facing]);
   return arrow;
+}
+
+function facingBadgeTexture(tile: Tile): THREE.CanvasTexture {
+  const key = `${tile.facing}:${tile.frozen}`;
+  const cached = facingBadgeTextures.get(key);
+  if (cached) return cached;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = 128;
+  canvas.height = 64;
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Facing badge drawing is unavailable");
+  const colors: Record<Facing, string> = {
+    N: "#397f9f", E: "#ba762e", S: "#a84e4a", W: "#71598f",
+  };
+  context.fillStyle = tile.frozen ? "#665c54" : colors[tile.facing];
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.strokeStyle = "#f7efd9";
+  context.lineWidth = 5;
+  context.strokeRect(3, 3, canvas.width - 6, canvas.height - 6);
+  context.fillStyle = "#fff9e8";
+  context.font = "700 42px Segoe UI, sans-serif";
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.fillText(tile.facing, canvas.width / 2, canvas.height / 2 + 1);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  facingBadgeTextures.set(key, texture);
+  return texture;
+}
+
+function createFacingBadges(tile: Tile, position: THREE.Vector3): THREE.Mesh[] {
+  const geometry = new THREE.PlaneGeometry(TILE_WIDTH * 0.3, TILE_HEIGHT * 0.58);
+  const material = new THREE.MeshBasicMaterial({
+    map: facingBadgeTexture(tile),
+    side: THREE.DoubleSide,
+  });
+  const offset = TILE_WIDTH / 2 + 0.004;
+  return [
+    { x: 0, z: -offset, rotation: Math.PI },
+    { x: offset, z: 0, rotation: Math.PI / 2 },
+    { x: 0, z: offset, rotation: 0 },
+    { x: -offset, z: 0, rotation: -Math.PI / 2 },
+  ].map(({ x, z, rotation }) => {
+    const badge = new THREE.Mesh(geometry, material);
+    badge.position.set(position.x + x, position.y, position.z + z);
+    badge.rotation.y = rotation;
+    return badge;
+  });
 }
 
 export class BoardView {
@@ -195,13 +259,14 @@ export class BoardView {
       (cell) => cell.q === coordinate.q && cell.r === coordinate.r,
     )?.stack.length ?? 0;
     const tile = new THREE.Mesh(
-      new THREE.BoxGeometry(CELL_SIZE * 0.76, TILE_HEIGHT, CELL_SIZE * 0.76),
+      createTileGeometry(),
       new THREE.MeshStandardMaterial({
         color: COLORS[tileState.owner],
         transparent: true,
         opacity: 0.76,
         roughness: 0.42,
         metalness: 0.12,
+        vertexColors: true,
       }),
     );
     tile.position.y = TILE_BASE_Y + TILE_HEIGHT * (destinationHeight + 0.5);
@@ -290,11 +355,12 @@ export class BoardView {
       const carried = selected && index >= cell.stack.length - this.selectedCount;
       const previewed = hovered && index >= cell.stack.length - (this.hovered?.count ?? 0);
       const tile = new THREE.Mesh(
-        new THREE.BoxGeometry(CELL_SIZE * 0.76, TILE_HEIGHT, CELL_SIZE * 0.76),
+        createTileGeometry(),
         new THREE.MeshStandardMaterial({
           color: carried ? COLORS.selected : previewed ? COLORS.hovered : COLORS[tileState.owner],
           roughness: 0.42,
           metalness: 0.12,
+          vertexColors: true,
         }),
       );
       tile.position.set(position.x, TILE_BASE_Y + TILE_HEIGHT * (index + 0.5), position.z);
@@ -304,6 +370,7 @@ export class BoardView {
       const arrow = createFacingArrow(tileState);
       arrow.position.set(position.x, tile.position.y + TILE_HEIGHT / 2 + 0.006, position.z);
       this.cells.add(arrow);
+      this.cells.add(...createFacingBadges(tileState, tile.position));
       const rim = new THREE.LineSegments(
         new THREE.EdgesGeometry(tile.geometry),
         new THREE.LineBasicMaterial({
@@ -466,7 +533,7 @@ export class BoardView {
 
     stack.slice(-selection.count).forEach((tileState, index) => {
       const tile = new THREE.Mesh(
-        new THREE.BoxGeometry(CELL_SIZE * 0.76, TILE_HEIGHT, CELL_SIZE * 0.76),
+        createTileGeometry(),
         new THREE.MeshStandardMaterial({
           color: COLORS[tileState.owner],
           transparent: true,
@@ -474,6 +541,7 @@ export class BoardView {
           depthWrite: false,
           roughness: 0.35,
           metalness: 0.08,
+          vertexColors: true,
         }),
       );
       tile.position.y = TILE_HEIGHT * (index + 0.5);
