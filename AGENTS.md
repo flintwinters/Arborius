@@ -11,6 +11,7 @@ Arborius is a compact, legible strategy game about controlling a living, unbound
 
 # Current tasks
 
+- Simplify the game UI around relevant state and pointer-accessible actions; remove decorative density and keyboard reliance.
 - Replace remaining prototype behavior with explicitly specified `rules.pdf` mechanics.
 - Implement forward Advance/Ascend/Descend and One Mind movement invariants.
 - Stage recursive Minds and abilities only after their unresolved rulebook semantics are decided.
