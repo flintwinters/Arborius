@@ -70,6 +70,16 @@ const FACING_ROTATION: Record<Facing, number> = {
   W: Math.PI / 2,
 };
 
+function directionMarkerMaterial(): THREE.MeshBasicMaterial {
+  return new THREE.MeshBasicMaterial({
+    color: 0x26302d,
+    transparent: true,
+    opacity: 0.44,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  });
+}
+
 function createFacingArrow(tile: Tile): THREE.Mesh {
   const shape = new THREE.Shape();
   shape.moveTo(0, 0.3);
@@ -78,7 +88,7 @@ function createFacingArrow(tile: Tile): THREE.Mesh {
   shape.closePath();
   const arrow = new THREE.Mesh(
     new THREE.ShapeGeometry(shape),
-    new THREE.MeshBasicMaterial({ color: tile.frozen ? 0x665c54 : 0x1d2021, side: THREE.DoubleSide }),
+    directionMarkerMaterial(),
   );
   arrow.rotation.set(-Math.PI / 2, 0, FACING_ROTATION[tile.facing]);
   return arrow;
@@ -102,10 +112,7 @@ function createSideDirectionMarkers(tile: Tile, position: THREE.Vector3): THREE.
   const left = FACING_ORDER[(facingIndex + 3) % 4];
   const right = FACING_ORDER[(facingIndex + 1) % 4];
   if (!left || !right) return [];
-  const material = new THREE.MeshBasicMaterial({
-    color: tile.frozen ? 0x7c6f64 : 0xfff4cf,
-    side: THREE.DoubleSide,
-  });
+  const material = directionMarkerMaterial();
   const offset = TILE_WIDTH / 2 + 0.004;
   const markerForFace = (face: Facing, geometry: THREE.BufferGeometry): THREE.Mesh => {
     const spec = FACE_SPECS[face];
