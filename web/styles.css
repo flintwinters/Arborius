@@ -30,6 +30,34 @@ header span { color: #a89984; }
 #board { min-width: 0; min-height: 0; position: relative; }
 #board canvas { display: block; width: 100%; height: 100%; outline: 0; cursor: grab; }
 #board canvas:active { cursor: grabbing; }
+.board-placement-controls {
+  position: absolute;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: 42px minmax(64px, auto) 42px;
+  gap: 3px;
+  transform: translate(-50%, -100%);
+  filter: drop-shadow(0 3px 2px #1d2021);
+}
+.board-placement-controls button {
+  min-width: 42px;
+  min-height: 42px;
+  padding: 5px 8px;
+  border-color: #ebdbb2;
+  background: #282828e8;
+  font-weight: 700;
+}
+.board-placement-controls button[data-placement-action="confirm"] { color: #b8bb26; border-color: #b8bb26; }
+.board-placement-controls button[data-placement-action="cancel"] {
+  position: absolute;
+  right: -25px;
+  top: -25px;
+  min-width: 26px;
+  min-height: 26px;
+  padding: 0;
+  border-color: #a89984;
+  color: #a89984;
+}
 
 .intel {
   display: flex;
@@ -65,7 +93,6 @@ header span { color: #a89984; }
 h2 { margin: 0 0 8px; color: #bdae93; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; }
 
 .reserve, .commands { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-.commands.facing { grid-template-columns: 1fr 1fr; }
 .commands.utility { margin-top: auto; }
 button {
   min-height: 38px;

@@ -12,6 +12,14 @@ export interface StackSelection extends BoardCoordinate {
   count: number;
 }
 
+export type PlacementControlAction = "left" | "confirm" | "right" | "cancel";
+
+export interface PlacementPreview {
+  coordinate: BoardCoordinate;
+  tile: Tile;
+  canRotate: boolean;
+}
+
 interface PointerInteraction {
   x: number;
   y: number;
@@ -65,6 +73,8 @@ export class BoardView {
   private readonly cells = new THREE.Group();
   private readonly ghost = new THREE.Group();
   private readonly hints = new THREE.Group();
+  private readonly placementGhost = new THREE.Group();
+  private readonly placementControls = document.createElement("div");
   private readonly targets: THREE.Mesh[] = [];
   private readonly ground = new THREE.Mesh(
     new THREE.PlaneGeometry(1, 1),
@@ -74,6 +84,7 @@ export class BoardView {
   private selected: BoardCoordinate | null = null;
   private selectedCount = 0;
   private destinations: BoardCoordinate[] = [];
+  private placementPreview: PlacementPreview | null = null;
   private interaction: PointerInteraction | null = null;
   private state: GameState | null = null;
 
@@ -85,17 +96,31 @@ export class BoardView {
       destination: BoardCoordinate,
       count: number,
     ) => void,
+    private readonly onPlacementControl: (action: PlacementControlAction) => void,
   ) {
     this.scene.background = new THREE.Color(0x1d2021);
     this.ground.rotation.x = -Math.PI / 2;
     this.ground.position.y = -0.02;
-    this.scene.add(this.ground, this.hints, this.cells, this.ghost);
+    this.scene.add(this.ground, this.hints, this.cells, this.placementGhost, this.ghost);
     this.targets.push(this.ground);
     this.camera.position.set(9.5, 11.5, 12.5);
     this.camera.lookAt(0, 0, 0);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.domElement.setAttribute("aria-label", "Interactive three-dimensional game board");
     this.host.append(this.renderer.domElement);
+    this.placementControls.className = "board-placement-controls";
+    this.placementControls.setAttribute("role", "group");
+    this.placementControls.setAttribute("aria-label", "Place tile");
+    this.placementControls.innerHTML = `<button data-placement-action="left" aria-label="Rotate tile left">↶</button><button data-placement-action="confirm" aria-label="Confirm placement">Place</button><button data-placement-action="right" aria-label="Rotate tile right">↷</button><button data-placement-action="cancel" aria-label="Cancel placement preview">×</button>`;
+    this.placementControls.hidden = true;
+    this.placementControls.addEventListener("pointerdown", (event) => event.stopPropagation());
+    this.placementControls.addEventListener("click", (event) => {
+      event.stopPropagation();
+      const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-placement-action]");
+      const action = button?.dataset.placementAction as PlacementControlAction | undefined;
+      if (action) this.onPlacementControl(action);
+    });
+    this.host.append(this.placementControls);
 
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableDamping = false;
@@ -127,6 +152,10 @@ export class BoardView {
     this.destinations = destinations;
   }
 
+  setPlacementPreview(preview: PlacementPreview | null): void {
+    this.placementPreview = preview;
+  }
+
   update(state: GameState): void {
     this.state = state;
     this.cells.clear();
@@ -134,10 +163,41 @@ export class BoardView {
     this.updateField(state.board);
     this.updateHints();
     state.board.forEach((cell) => this.addCell(cell));
+    this.updatePlacementPreview();
     if (this.selected && !state.board.some((cell) => cell.q === this.selected?.q && cell.r === this.selected?.r)) {
       this.addSelectionMarker(this.selected);
     }
     this.render();
+  }
+
+  private updatePlacementPreview(): void {
+    this.clearGroup(this.placementGhost);
+    this.placementControls.hidden = this.placementPreview === null;
+    if (!this.placementPreview) return;
+
+    this.placementControls.querySelectorAll<HTMLButtonElement>("[data-placement-action='left'], [data-placement-action='right']")
+      .forEach((button) => { button.disabled = !this.placementPreview?.canRotate; });
+
+    const { coordinate, tile: tileState } = this.placementPreview;
+    const destinationHeight = this.state?.board.find(
+      (cell) => cell.q === coordinate.q && cell.r === coordinate.r,
+    )?.stack.length ?? 0;
+    const tile = new THREE.Mesh(
+      new THREE.BoxGeometry(CELL_SIZE * 0.76, TILE_HEIGHT, CELL_SIZE * 0.76),
+      new THREE.MeshStandardMaterial({
+        color: COLORS[tileState.owner],
+        transparent: true,
+        opacity: 0.76,
+        roughness: 0.42,
+        metalness: 0.12,
+      }),
+    );
+    tile.position.y = 0.14 + TILE_HEIGHT * (destinationHeight + 0.5);
+    this.placementGhost.add(tile);
+    const arrow = createFacingArrow(tileState);
+    arrow.position.y = tile.position.y + TILE_HEIGHT / 2 + 0.006;
+    this.placementGhost.add(arrow);
+    this.placementGhost.position.copy(worldPosition(coordinate.q, coordinate.r));
   }
 
   private updateHints(): void {
@@ -371,7 +431,12 @@ export class BoardView {
   }
 
   private clearGhost(): void {
-    this.ghost.children.forEach((child) => {
+    this.clearGroup(this.ghost);
+    this.ghost.visible = false;
+  }
+
+  private clearGroup(group: THREE.Group): void {
+    group.children.forEach((child) => {
       if (!(child instanceof THREE.Mesh)) return;
       child.geometry.dispose();
       if (Array.isArray(child.material)) {
@@ -380,8 +445,7 @@ export class BoardView {
         child.material.dispose();
       }
     });
-    this.ghost.clear();
-    this.ghost.visible = false;
+    group.clear();
   }
 
   private resize(): void {
@@ -395,5 +459,21 @@ export class BoardView {
 
   private render(): void {
     this.renderer.render(this.scene, this.camera);
+    this.positionPlacementControls();
+  }
+
+  private positionPlacementControls(): void {
+    if (!this.placementPreview || this.placementControls.hidden) return;
+    const { coordinate } = this.placementPreview;
+    const destinationHeight = this.state?.board.find(
+      (cell) => cell.q === coordinate.q && cell.r === coordinate.r,
+    )?.stack.length ?? 0;
+    const projected = worldPosition(coordinate.q, coordinate.r);
+    projected.y = 0.58 + TILE_HEIGHT * destinationHeight;
+    projected.project(this.camera);
+    const visible = projected.z > -1 && projected.z < 1;
+    this.placementControls.style.visibility = visible ? "visible" : "hidden";
+    this.placementControls.style.left = `${(projected.x * 0.5 + 0.5) * this.host.clientWidth}px`;
+    this.placementControls.style.top = `${(-projected.y * 0.5 + 0.5) * this.host.clientHeight}px`;
   }
 }
