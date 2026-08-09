@@ -75,12 +75,12 @@ const FACING_VECTOR: Record<Facing, { x: number; z: number }> = {
   N: { x: 0, z: -1 }, E: { x: 1, z: 0 }, S: { x: 0, z: 1 }, W: { x: -1, z: 0 },
 };
 
-function directionMarkerMaterial(map?: THREE.Texture): THREE.MeshBasicMaterial {
+function directionMarkerMaterial(map?: THREE.Texture, opacity = 0.44): THREE.MeshBasicMaterial {
   return new THREE.MeshBasicMaterial({
     color: 0x26302d,
     map,
     transparent: true,
-    opacity: 0.44,
+    opacity,
     depthWrite: false,
     side: THREE.DoubleSide,
   });
@@ -161,7 +161,7 @@ function tileIconTexture(name: string): THREE.CanvasTexture {
 function createTileIcon(tile: Tile): THREE.Group {
   const icon = new THREE.Mesh(
     new THREE.PlaneGeometry(TILE_WIDTH * 0.42, TILE_WIDTH * 0.42),
-    directionMarkerMaterial(tileIconTexture(tile.name)),
+    directionMarkerMaterial(tileIconTexture(tile.name), 1),
   );
   icon.rotation.x = -Math.PI / 2;
   const tileIcon = new THREE.Group();
