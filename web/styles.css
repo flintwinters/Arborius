@@ -262,7 +262,7 @@ button:focus-visible { outline: 2px solid #b7e6f2; outline-offset: 2px; }
   padding: 4px;
   border: 1px solid #7c8985;
   border-radius: 5px;
-  transform: translate(-50%, -100%);
+  transform: translate(calc(-100% - 18px), calc(-100% - 32px));
   background: #202627;
   box-shadow: 2px 3px 0 rgba(0, 0, 0, .45);
 }
