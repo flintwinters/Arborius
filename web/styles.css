@@ -252,7 +252,11 @@ button:focus-visible { outline: 2px solid #b7e6f2; outline-offset: 2px; }
 .board-placement-controls,
 .board-selection-controls {
   position: absolute;
+  top: 12px;
+  left: 12px;
   z-index: 2;
+  box-sizing: border-box;
+  max-width: calc(100% - 24px);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -261,8 +265,8 @@ button:focus-visible { outline: 2px solid #b7e6f2; outline-offset: 2px; }
   background: linear-gradient(to bottom, #2a3436, #1a2021);
   box-shadow: 0 4px 10px rgba(0, 0, 0, .55), inset 0 1px rgba(222, 241, 231, .16);
 }
-.board-placement-controls { transform: translate(-50%, -100%); min-width: 138px; }
-.board-selection-controls { transform: translate(calc(-100% - 18px), calc(-100% - 32px)); min-width: 246px; }
+.board-placement-controls { width: min(138px, calc(100% - 24px)); }
+.board-selection-controls { width: min(246px, calc(100% - 24px)); }
 .popup-window-header {
   display: flex;
   align-items: center;
@@ -271,10 +275,7 @@ button:focus-visible { outline: 2px solid #b7e6f2; outline-offset: 2px; }
   border-bottom: 1px solid #141a1b;
   background: linear-gradient(to bottom, #61797b, #3b4a4d);
   box-shadow: inset 0 1px rgba(234, 249, 241, .22), inset 0 -1px rgba(192, 228, 218, .14);
-  cursor: grab;
-  user-select: none;
 }
-.popup-window-header:active { cursor: grabbing; }
 .popup-window-title {
   flex: 1;
   overflow: hidden;
@@ -287,9 +288,8 @@ button:focus-visible { outline: 2px solid #b7e6f2; outline-offset: 2px; }
   text-transform: uppercase;
   white-space: nowrap;
 }
-.popup-window-close {
-  min-width: 22px !important;
-  min-height: 22px !important;
+.popup-window-cancel {
+  min-width: 42px !important;
   padding: 0 !important;
   --button-top: #814c4c;
   --button-bottom: #5e373b;
@@ -306,8 +306,7 @@ button:focus-visible { outline: 2px solid #b7e6f2; outline-offset: 2px; }
 .board-selection-controls button[data-selection-action="right"] { --button-top: #665a86; --button-bottom: #473f63; }
 .board-selection-controls button[data-selection-action="scope"] { --button-top: #73567d; --button-bottom: #513d5b; }
 .board-selection-controls button[data-selection-action="unplay"] { --button-top: #806040; --button-bottom: #5c432f; }
-.popup-window-footer { padding: 0 7px 7px; }
-.popup-window-footer button { width: 100%; }
+.popup-window-footer { display: grid; grid-template-columns: minmax(0, 1fr) 42px; gap: 5px; padding: 0 7px 7px; }
 .board-placement-controls button[data-placement-action="end-turn"],
 .board-selection-controls button[data-selection-action="end-turn"] {
   --button-top: #60783b;

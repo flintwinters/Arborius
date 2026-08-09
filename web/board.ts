@@ -36,15 +36,6 @@ interface PointerInteraction {
   selection: StackSelection | null;
 }
 
-interface PopupDrag {
-  element: HTMLElement;
-  pointerId: number;
-  startX: number;
-  startY: number;
-  offsetX: number;
-  offsetY: number;
-}
-
 interface PopupButton {
   action: string;
   label: string;
@@ -269,8 +260,6 @@ export class BoardView {
   private readonly placementGhost = new THREE.Group();
   private readonly placementControls = document.createElement("div");
   private readonly selectionControls = document.createElement("div");
-  private readonly placementControlOffset = new THREE.Vector2();
-  private readonly selectionControlOffset = new THREE.Vector2();
   private readonly targets: THREE.Mesh[] = [];
   private readonly ground = new THREE.Mesh(
     new THREE.PlaneGeometry(1, 1),
@@ -289,7 +278,6 @@ export class BoardView {
   private destinations: BoardCoordinate[] = [];
   private placementPreview: PlacementPreview | null = null;
   private interaction: PointerInteraction | null = null;
-  private popupDrag: PopupDrag | null = null;
   private state: GameState | null = null;
 
   constructor(
@@ -338,40 +326,6 @@ export class BoardView {
     this.resize();
   }
 
-  private enablePopupDragging(element: HTMLElement): void {
-    element.addEventListener("pointerdown", (event) => {
-      event.stopPropagation();
-      if (event.button !== 0 || (event.target as HTMLElement).closest("button")) return;
-      const offset = this.popupOffset(element);
-      this.popupDrag = {
-        element,
-        pointerId: event.pointerId,
-        startX: event.clientX,
-        startY: event.clientY,
-        offsetX: offset.x,
-        offsetY: offset.y,
-      };
-      element.setPointerCapture(event.pointerId);
-    });
-    element.addEventListener("pointermove", (event) => {
-      if (!this.popupDrag || this.popupDrag.element !== element || this.popupDrag.pointerId !== event.pointerId) return;
-      const offset = this.popupOffset(element);
-      offset.set(
-        this.popupDrag.offsetX + event.clientX - this.popupDrag.startX,
-        this.popupDrag.offsetY + event.clientY - this.popupDrag.startY,
-      );
-      this.render();
-    });
-    element.addEventListener("pointerup", (event) => this.stopPopupDrag(element, event.pointerId));
-    element.addEventListener("pointercancel", (event) => this.stopPopupDrag(element, event.pointerId));
-  }
-
-  private stopPopupDrag(element: HTMLElement, pointerId: number): void {
-    if (!this.popupDrag || this.popupDrag.element !== element || this.popupDrag.pointerId !== pointerId) return;
-    this.popupDrag = null;
-    if (element.hasPointerCapture(pointerId)) element.releasePointerCapture(pointerId);
-  }
-
   private initializePopup<Action extends string>(
     element: HTMLElement,
     className: string,
@@ -383,7 +337,6 @@ export class BoardView {
     element.setAttribute("role", "group");
     element.setAttribute("aria-label", label);
     element.hidden = true;
-    this.enablePopupDragging(element);
     element.addEventListener("click", (event) => {
       event.stopPropagation();
       const button = (event.target as HTMLElement).closest<HTMLButtonElement>(`[${actionAttribute}]`);
@@ -391,10 +344,6 @@ export class BoardView {
       if (action) onAction(action);
     });
     this.host.append(element);
-  }
-
-  private popupOffset(element: HTMLElement): THREE.Vector2 {
-    return element === this.placementControls ? this.placementControlOffset : this.selectionControlOffset;
   }
 
   private createPopupButton(actionAttribute: string, button: PopupButton, className?: string): HTMLButtonElement {
@@ -409,11 +358,10 @@ export class BoardView {
   private renderPopup(element: HTMLElement, actionAttribute: string, content: PopupContent): void {
     const header = document.createElement("div");
     header.className = "popup-window-header";
-    header.title = "Drag to move";
     const title = document.createElement("span");
     title.className = "popup-window-title";
     title.textContent = content.title;
-    header.append(title, this.createPopupButton(actionAttribute, content.cancel, "popup-window-close"));
+    header.append(title);
 
     const body = document.createElement("div");
     body.className = "popup-window-body";
@@ -425,7 +373,10 @@ export class BoardView {
 
     const footer = document.createElement("div");
     footer.className = "popup-window-footer";
-    footer.append(this.createPopupButton(actionAttribute, content.footerButton));
+    footer.append(
+      this.createPopupButton(actionAttribute, content.footerButton),
+      this.createPopupButton(actionAttribute, content.cancel, "popup-window-cancel"),
+    );
     element.replaceChildren(header, body, footer);
   }
 
@@ -908,46 +859,5 @@ export class BoardView {
 
   private render(): void {
     this.renderer.render(this.scene, this.camera);
-    this.positionPlacementControls();
-    this.positionSelectionControls();
-  }
-
-  private positionPlacementControls(): void {
-    if (!this.placementPreview || this.placementControls.hidden) return;
-    const { coordinate } = this.placementPreview;
-    const destinationHeight = this.state?.board.find(
-      (cell) => cell.q === coordinate.q && cell.r === coordinate.r,
-    )?.stack.length ?? 0;
-    this.positionBoardControls(
-      this.placementControls,
-      coordinate,
-      0.58 + TILE_HEIGHT * destinationHeight,
-    );
-  }
-
-  private positionSelectionControls(): void {
-    if (!this.selected || this.selectionControls.hidden) return;
-    const stackHeight = this.state?.board.find(
-      (cell) => cell.q === this.selected?.q && cell.r === this.selected?.r,
-    )?.stack.length;
-    if (!stackHeight) return;
-    this.positionBoardControls(
-      this.selectionControls,
-      this.selected,
-      TILE_BASE_Y + TILE_HEIGHT * stackHeight + 0.16,
-    );
-  }
-
-  private positionBoardControls(element: HTMLElement, coordinate: BoardCoordinate, height: number): void {
-    const projected = worldPosition(coordinate.q, coordinate.r);
-    projected.y = height;
-    projected.project(this.camera);
-    const visible = projected.z > -1 && projected.z < 1;
-    element.style.visibility = visible ? "visible" : "hidden";
-    const offset = element === this.placementControls
-      ? this.placementControlOffset
-      : this.selectionControlOffset;
-    element.style.left = `${(projected.x * 0.5 + 0.5) * this.host.clientWidth + offset.x}px`;
-    element.style.top = `${(-projected.y * 0.5 + 0.5) * this.host.clientHeight + offset.y}px`;
   }
 }
