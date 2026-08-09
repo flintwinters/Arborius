@@ -1,6 +1,6 @@
 import "./styles.css";
 
-import { BoardView, type BoardCoordinate, type SelectionControlAction } from "./board";
+import { BoardView, type BoardCoordinate, type RotationPreview, type SelectionControlAction } from "./board";
 import {
   cellKey,
   gameApi,
@@ -121,6 +121,16 @@ function proposedMovePreview(): BoardCoordinate | null {
   return { q: proposedAction.to_q, r: proposedAction.to_r };
 }
 
+function proposedRotationPreview(): RotationPreview | null {
+  if (proposedAction?.type !== "rotate") return null;
+  return {
+    coordinate: { q: proposedAction.q, r: proposedAction.r },
+    count: proposedAction.count,
+    wholeStack: proposedAction.whole_stack,
+    quarterTurns: proposedAction.quarter_turns,
+  };
+}
+
 function proposedActionText(): string {
   if (!proposedAction) return "";
   if (proposedAction.type === "move") return `Move proposed. Press End turn to move ${proposedAction.count} tile${proposedAction.count === 1 ? "" : "s"} to the marked stack.`;
@@ -168,6 +178,7 @@ function render(): void {
     selectedCount,
     rotateWholeStack,
     proposedMovePreview(),
+    proposedRotationPreview(),
     proposedAction !== null,
     busy || game.winner !== null,
   );

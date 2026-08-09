@@ -22,6 +22,13 @@ export interface PlacementPreview {
   canEndTurn: boolean;
 }
 
+export interface RotationPreview {
+  coordinate: BoardCoordinate;
+  count: number;
+  wholeStack: boolean;
+  quarterTurns: -1 | 1;
+}
+
 interface PointerInteraction {
   x: number;
   y: number;
@@ -79,6 +86,12 @@ const FACING_ROTATION: Record<Facing, number> = {
 const FACING_VECTOR: Record<Facing, { x: number; z: number }> = {
   N: { x: 0, z: -1 }, E: { x: 1, z: 0 }, S: { x: 0, z: 1 }, W: { x: -1, z: 0 },
 };
+const FACING_ORDER: Facing[] = ["N", "E", "S", "W"];
+
+function rotatedFacing(facing: Facing, quarterTurns: -1 | 1): Facing {
+  const index = FACING_ORDER.indexOf(facing);
+  return FACING_ORDER[(index + quarterTurns + FACING_ORDER.length) % FACING_ORDER.length] ?? facing;
+}
 
 function directionMarkerMaterial(map?: THREE.Texture, opacity = 0.44): THREE.MeshBasicMaterial {
   return new THREE.MeshBasicMaterial({
@@ -186,8 +199,6 @@ const FACE_SPECS: Record<Facing, {
   S: { x: 0, z: 1, rotation: 0, localRight: "E" },
   W: { x: -1, z: 0, rotation: -Math.PI / 2, localRight: "S" },
 };
-const FACING_ORDER: Facing[] = ["N", "E", "S", "W"];
-
 function createSideDirectionMarkers(tile: Tile, position: THREE.Vector3): THREE.Mesh[] {
   const facingIndex = FACING_ORDER.indexOf(tile.facing);
   const left = FACING_ORDER[(facingIndex + 3) % 4];
@@ -244,6 +255,7 @@ export class BoardView {
   private selectedCount = 0;
   private rotateWholeStack = false;
   private proposedMove: BoardCoordinate | null = null;
+  private proposedRotation: RotationPreview | null = null;
   private hasProposedAction = false;
   private actionControlsDisabled = false;
   private hovered: StackSelection | null = null;
@@ -327,6 +339,7 @@ export class BoardView {
     count = 0,
     rotateWholeStack = false,
     proposedMove: BoardCoordinate | null = null,
+    proposedRotation: RotationPreview | null = null,
     hasProposedAction = false,
     actionControlsDisabled = false,
   ): void {
@@ -334,6 +347,7 @@ export class BoardView {
     this.selectedCount = count;
     this.rotateWholeStack = rotateWholeStack;
     this.proposedMove = proposedMove;
+    this.proposedRotation = proposedRotation;
     this.hasProposedAction = hasProposedAction;
     this.actionControlsDisabled = actionControlsDisabled;
     if (coordinate) this.setHovered(null);
@@ -508,6 +522,12 @@ export class BoardView {
     const position = worldPosition(q, r);
     const selected = this.selected?.q === q && this.selected.r === r;
     cell.stack.forEach((tileState, index) => {
+      const rotatesTile = this.proposedRotation?.coordinate.q === q
+        && this.proposedRotation.coordinate.r === r
+        && (this.proposedRotation.wholeStack || index >= cell.stack.length - this.proposedRotation.count);
+      const displayedTile = rotatesTile
+        ? { ...tileState, facing: rotatedFacing(tileState.facing, this.proposedRotation?.quarterTurns ?? 1) }
+        : tileState;
       const hovered = this.hovered?.q === q && this.hovered.r === r;
       const carried = selected && index >= cell.stack.length - this.selectedCount;
       const previewed = hovered && index >= cell.stack.length - (this.hovered?.count ?? 0);
@@ -524,12 +544,12 @@ export class BoardView {
       tile.userData = { q, r, count: cell.stack.length - index, owner: tileState.owner };
       this.cells.add(tile);
       this.targets.push(tile);
-      const arrow = createFacingArrow(tileState);
+      const arrow = createFacingArrow(displayedTile);
       arrow.position.add(new THREE.Vector3(position.x, tile.position.y + TILE_HEIGHT / 2 + 0.006, position.z));
-      const icon = createTileIcon(tileState);
+      const icon = createTileIcon(displayedTile);
       icon.position.set(position.x, arrow.position.y, position.z);
       this.cells.add(arrow, icon);
-      this.cells.add(...createSideDirectionMarkers(tileState, tile.position));
+      this.cells.add(...createSideDirectionMarkers(displayedTile, tile.position));
       const rim = new THREE.LineSegments(
         new THREE.EdgesGeometry(tile.geometry),
         new THREE.LineBasicMaterial({
