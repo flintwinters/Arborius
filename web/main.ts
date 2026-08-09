@@ -262,9 +262,35 @@ function actionResult(action: GameAction): string {
   return "Top tile returned to reserve. Turn passed.";
 }
 
+function clearCurrentAction(): void {
+  selected = null;
+  selectedCount = 0;
+  proposedAction = null;
+  selectedReserve = null;
+  pendingPlacement = null;
+  notice = null;
+}
+
+function selectStack(coordinate: BoardCoordinate, count = 1): void {
+  selected = coordinate;
+  selectedCount = count;
+  rotateWholeStack = false;
+  selectedReserve = null;
+  pendingPlacement = null;
+  proposedAction = null;
+  notice = null;
+}
+
 async function choose(coordinate: BoardCoordinate, count?: number): Promise<void> {
   if (game.winner || busy) return;
   const target = stackAt(coordinate);
+  if ((proposedAction || selected) && target.length > 0 && (!selected
+    || cellKey(selected.q, selected.r) !== cellKey(coordinate.q, coordinate.r))) {
+    clearCurrentAction();
+    if (target.at(-1)?.owner === game.turn) selectStack(coordinate, count);
+    render();
+    return;
+  }
   if (selectedReserve) {
     if (!destinations().some((destination) => cellKey(destination.q, destination.r) === cellKey(coordinate.q, coordinate.r))) {
       notice = { kind: "error", text: "Choose one of the green placement markers." };
@@ -279,10 +305,7 @@ async function choose(coordinate: BoardCoordinate, count?: number): Promise<void
   }
   if (!selected) {
     if (target.at(-1)?.owner === game.turn) {
-      selected = coordinate;
-      selectedCount = count ?? 1;
-      rotateWholeStack = false;
-      proposedAction = null;
+      selectStack(coordinate, count);
       render();
     } else {
       notice = { kind: "error", text: target.length ? "That stack is controlled by your opponent." : "Choose one of your stacks or a reserve tile first." };
@@ -343,12 +366,7 @@ async function move(
 }
 
 function cancel(): void {
-  selected = null;
-  selectedCount = 0;
-  proposedAction = null;
-  selectedReserve = null;
-  pendingPlacement = null;
-  notice = null;
+  clearCurrentAction();
   render();
 }
 
