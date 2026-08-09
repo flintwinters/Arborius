@@ -70,6 +70,7 @@ def test_place_rotate_move_and_unplay_round_trip(client: ApiClient) -> None:
     first = place(client, "amber", "amber-horse", 0, 0, "E")
     assert first.status_code == 200
     assert first.json()["board"][0]["stack"][0]["id"] == "amber-horse"
+    assert [snapshot["move_number"] for snapshot in first.json()["turn_history"]] == [0, 1]
     assert place(client, "teal", "teal-horse", 1, 1, "W").status_code == 200
 
     rotated = client.post(

@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 from server.game import (
@@ -312,6 +314,17 @@ def test_serialization_contains_complete_tiles_and_no_invented_limits() -> None:
         "frozen": False,
     }
     assert state["winner"] is None
+
+
+def test_turn_history_serializes_the_complete_state_after_every_turn() -> None:
+    game = Game()
+    game.apply(Player.AMBER, PlaceAction("amber-horse", 0, 0, Facing.EAST))
+    state = game.to_dict()
+
+    assert json.loads(json.dumps(state)) == state
+    history = state["turn_history"]
+    assert [snapshot["move_number"] for snapshot in history] == [0, 1]
+    assert history[-1] == {key: value for key, value in state.items() if key != "turn_history"}
 
 
 def test_player_with_any_legal_action_has_not_lost() -> None:

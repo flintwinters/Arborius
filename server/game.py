@@ -140,6 +140,11 @@ class Game:
     reserves: dict[Player, list[Tile]] = field(default_factory=starting_reserves)
     winner: Player | None = None
     move_number: int = 0
+    turn_history: list[dict[str, object]] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        if not self.turn_history:
+            self.turn_history.append(self._state_dict())
 
     def apply(self, player: Player, action: Action) -> None:
         if self.winner is not None:
@@ -152,6 +157,7 @@ class Game:
         self.move_number += 1
         self.turn = player.opponent
         self.winner = player if not self.has_valid_action(self.turn) else None
+        self.turn_history.append(self._state_dict())
 
     def has_valid_action(self, player: Player) -> bool:
         """Return whether player can perform any complete legal turn action."""
@@ -338,7 +344,7 @@ class Game:
                     pending.append(neighbor)
         return reached == occupied
 
-    def to_dict(self) -> dict[str, object]:
+    def _state_dict(self) -> dict[str, object]:
         cells = [
             {"q": q, "r": r, "stack": [tile.to_dict() for tile in stack]}
             for (q, r), stack in sorted(self.board.items())
@@ -363,3 +369,9 @@ class Game:
                 for action in self.valid_moves(self.turn)
             ],
         }
+
+    def to_dict(self) -> dict[str, object]:
+        """Return the current state together with complete turn snapshots."""
+        state = self._state_dict()
+        state["turn_history"] = self.turn_history
+        return state

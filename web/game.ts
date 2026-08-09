@@ -15,7 +15,7 @@ export interface CellState {
   stack: Tile[];
 }
 
-export interface GameState {
+export interface TurnState {
   turn: Player;
   winner: Player | null;
   move_number: number;
@@ -28,6 +28,10 @@ export interface GameState {
     to_r: number;
     count: number;
   }>;
+}
+
+export interface GameState extends TurnState {
+  turn_history: TurnState[];
 }
 
 export type GameAction =
