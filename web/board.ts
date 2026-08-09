@@ -486,12 +486,13 @@ export class BoardView {
       ? `Move to ${this.proposedMove.q}, ${this.proposedMove.r} ready`
       : `${top?.name ?? "Stack"} · ${this.selectedCount} tile${this.selectedCount === 1 ? "" : "s"}`;
     const endTurn = this.hasProposedAction ? `<button data-selection-action="end-turn">End turn</button>` : "";
-    const rotationControls = this.canRotate
-      ? `<button data-selection-action="left" aria-label="Rotate tile left">↶</button><button data-selection-action="scope">Rotate ${rotationScope}</button><button data-selection-action="right" aria-label="Rotate tile right">↷</button>`
-      : "";
+    const rotationControls = `<button data-selection-action="left" aria-label="Rotate tile left">↶</button><button data-selection-action="scope">Rotate ${rotationScope}</button><button data-selection-action="right" aria-label="Rotate tile right">↷</button>`;
     this.selectionControls.innerHTML = `<span class="board-selection-title">${title}</span>${rotationControls}${endTurn}<button data-selection-action="unplay">Return top tile</button><button data-selection-action="cancel" aria-label="Clear selection">×</button>`;
     this.selectionControls.querySelectorAll<HTMLButtonElement>("button").forEach((button) => {
-      button.disabled = this.actionControlsDisabled;
+      const isRotationControl = button.dataset.selectionAction === "left"
+        || button.dataset.selectionAction === "right"
+        || button.dataset.selectionAction === "scope";
+      button.disabled = this.actionControlsDisabled || (isRotationControl && !this.canRotate);
     });
   }
 

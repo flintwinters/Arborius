@@ -215,7 +215,7 @@ function render(): void {
   ).join("");
   gameOverNode.hidden = game.winner === null;
   gameOverMessageNode.textContent = game.winner ? `${playerLabel(game.winner)} wins.` : "";
-  document.querySelectorAll<HTMLButtonElement>("button").forEach((button) => {
+  document.querySelectorAll<HTMLButtonElement>("button:not([data-selection-action]):not([data-placement-action])").forEach((button) => {
     button.disabled = busy || (game.winner !== null && button.id !== "reset" && button.id !== "play-again");
   });
   requireElement<HTMLButtonElement>("#cancel").disabled = busy || (selected === null && selectedReserve === null);
