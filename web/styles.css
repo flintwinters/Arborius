@@ -137,11 +137,6 @@ h2 {
   background: linear-gradient(to bottom, #634932, #49372c);
   color: #ffc170;
 }
-#selection-controls h2 {
-  background: linear-gradient(to bottom, #3e5f6b, #304955);
-  color: #9ed6e8;
-}
-
 .reserve, .commands { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
 .commands.utility { margin-top: auto; padding-top: 4px; border-top: 1px solid #4b5654; }
 
@@ -197,6 +192,12 @@ button:focus-visible { outline: 2px solid #b7e6f2; outline-offset: 2px; }
 .reserve button:nth-child(8) { --button-top: #79505d; --button-bottom: #573a45; }
 #cancel { --button-top: #814c4c; --button-bottom: #5e373b; }
 #reset { --button-top: #39766d; --button-bottom: #295650; }
+#end-turn { --button-top: #60783b; --button-bottom: #43552c; }
+#end-turn:disabled { --button-top: #59615e; --button-bottom: #3c4441; }
+.commands.utility { grid-template-areas: "cancel reset" ". end"; }
+.commands.utility #cancel { grid-area: cancel; }
+.commands.utility #reset { grid-area: reset; }
+.commands.utility #end-turn { grid-area: end; }
 
 .notice { display: block; min-height: 0; overflow-wrap: anywhere; }
 .notice:not(:empty) {
@@ -280,15 +281,8 @@ button:focus-visible { outline: 2px solid #b7e6f2; outline-offset: 2px; }
 .board-selection-controls button[data-selection-action="left"] { --button-top: #477486; --button-bottom: #315565; }
 .board-selection-controls button[data-selection-action="right"] { --button-top: #665a86; --button-bottom: #473f63; }
 .board-selection-controls button[data-selection-action="scope"] { --button-top: #73567d; --button-bottom: #513d5b; }
-.board-selection-controls button[data-selection-action="move"],
 .board-selection-controls button[data-selection-action="unplay"] {
   grid-column: 1 / -1;
-}
-.board-selection-controls button[data-selection-action="move"] {
-  --button-top: #60783b;
-  --button-bottom: #43552c;
-  border-color: #c6dd70 #263316 #263316 #c6dd70;
-  color: #e9f6a8;
 }
 .board-selection-controls button[data-selection-action="unplay"] {
   --button-top: #806040;

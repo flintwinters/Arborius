@@ -13,7 +13,7 @@ export interface StackSelection extends BoardCoordinate {
 }
 
 export type PlacementControlAction = "left" | "confirm" | "right" | "cancel";
-export type SelectionControlAction = "left" | "right" | "scope" | "move" | "unplay" | "cancel";
+export type SelectionControlAction = "left" | "right" | "scope" | "unplay" | "cancel";
 
 export interface PlacementPreview {
   coordinate: BoardCoordinate;
@@ -349,6 +349,7 @@ export class BoardView {
     this.updateHints();
     state.board.forEach((cell) => this.addCell(cell));
     this.updatePlacementPreview();
+    this.updateMovePreview();
     this.updateSelectionControls();
     if (this.selected && !state.board.some((cell) => cell.q === this.selected?.q && cell.r === this.selected?.r)) {
       this.addSelectionMarker(this.selected);
@@ -404,10 +405,10 @@ export class BoardView {
     const top = stack.at(-1);
     this.selectionControls.hidden = false;
     const rotationScope = this.rotateWholeStack ? "stack" : `${this.selectedCount} tile${this.selectedCount === 1 ? "" : "s"}`;
-    const moveConfirmation = this.proposedMove
-      ? `<button data-selection-action="move">Move to ${this.proposedMove.q}, ${this.proposedMove.r}</button>`
-      : "";
-    this.selectionControls.innerHTML = `<span class="board-selection-title">${top?.name ?? "Stack"} · ${this.selectedCount} tile${this.selectedCount === 1 ? "" : "s"}</span><button data-selection-action="left" aria-label="Rotate tile left">↶</button><button data-selection-action="scope">Rotate ${rotationScope}</button><button data-selection-action="right" aria-label="Rotate tile right">↷</button>${moveConfirmation}<button data-selection-action="unplay">Return top tile</button><button data-selection-action="cancel" aria-label="Clear selection">×</button>`;
+    const title = this.proposedMove
+      ? `Move to ${this.proposedMove.q}, ${this.proposedMove.r} ready`
+      : `${top?.name ?? "Stack"} · ${this.selectedCount} tile${this.selectedCount === 1 ? "" : "s"}`;
+    this.selectionControls.innerHTML = `<span class="board-selection-title">${title}</span><button data-selection-action="left" aria-label="Rotate tile left">↶</button><button data-selection-action="scope">Rotate ${rotationScope}</button><button data-selection-action="right" aria-label="Rotate tile right">↷</button><button data-selection-action="unplay">Return top tile</button><button data-selection-action="cancel" aria-label="Clear selection">×</button>`;
     this.selectionControls.querySelectorAll<HTMLButtonElement>("button").forEach((button) => {
       button.disabled = this.actionControlsDisabled;
     });
@@ -433,6 +434,15 @@ export class BoardView {
       marker.position.y = stackSurfaceY(height) + SURFACE_CLEARANCE;
       this.hints.add(marker);
     });
+  }
+
+  private updateMovePreview(): void {
+    if (!this.selected || !this.proposedMove) {
+      this.clearGhost();
+      return;
+    }
+    this.createGhost({ ...this.selected, count: this.selectedCount });
+    this.positionGhost(this.proposedMove);
   }
 
   private updateField(board: CellState[]): void {
@@ -688,6 +698,12 @@ export class BoardView {
       arrow.position.y = TILE_HEIGHT * (index + 1) + 0.006;
       const icon = createTileIcon(tileState);
       icon.position.y = arrow.position.y;
+      icon.traverse((child) => {
+        if (!(child instanceof THREE.Mesh)) return;
+        const material = child.material as THREE.MeshBasicMaterial;
+        material.opacity *= 0.48;
+        material.depthWrite = false;
+      });
       this.ghost.add(arrow, icon);
     });
   }

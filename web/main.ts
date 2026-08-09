@@ -22,7 +22,7 @@ app.innerHTML = `
     <h2>Tiles</h2>
     <div id="reserve" class="reserve"></div>
     <output id="log" class="notice" aria-live="assertive"></output>
-    <div class="commands utility"><button id="cancel">Clear selection</button><button id="reset">New game</button></div>
+    <div class="commands utility"><button id="cancel">Clear selection</button><button id="reset">New game</button><button id="end-turn" disabled>End turn</button></div>
   </aside>`;
 
 function requireElement<T extends Element>(selector: string): T {
@@ -115,7 +115,7 @@ function promptText(): string {
   if (game.winner) return `${playerLabel(game.winner)} controls the canopy.`;
   if (busy) return "Resolving action…";
   if (selected) {
-    if (proposedMove) return `Move proposed. Confirm moving ${selectedCount} tile${selectedCount === 1 ? "" : "s"} to the marked stack.`;
+    if (proposedMove) return `Move proposed. Press End turn to move ${selectedCount} tile${selectedCount === 1 ? "" : "s"} to the marked stack.`;
     const top = stackAt(selected).at(-1);
     const destination = destinations()[0];
     return destination
@@ -165,6 +165,7 @@ function render(): void {
     button.disabled = busy || (game.winner !== null && button.id !== "reset");
   });
   requireElement<HTMLButtonElement>("#cancel").disabled = busy || (selected === null && selectedReserve === null);
+  requireElement<HTMLButtonElement>("#end-turn").disabled = busy || game.winner !== null || proposedMove === null;
 }
 
 async function submit(action: GameAction): Promise<void> {
@@ -304,6 +305,7 @@ async function reset(): Promise<void> {
 
 document.querySelector("#cancel")?.addEventListener("click", cancel);
 document.querySelector("#reset")?.addEventListener("click", () => void reset());
+document.querySelector("#end-turn")?.addEventListener("click", () => void endTurn());
 reserveNode.addEventListener("click", (event) => {
   const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-tile-id]");
   if (!button) return;
@@ -375,20 +377,21 @@ async function handleSelectionControl(action: SelectionControlAction): Promise<v
     await rotate(action === "left" ? -1 : 1);
     return;
   }
-  if (action === "move" && selected && proposedMove) {
-    await submit({
-      type: "move",
-      player: game.turn,
-      from_q: selected.q,
-      from_r: selected.r,
-      to_q: proposedMove.q,
-      to_r: proposedMove.r,
-      count: selectedCount,
-    });
-    return;
-  }
   if (!selected) return;
   await submit({ type: "unplay", player: game.turn, q: selected.q, r: selected.r });
+}
+
+async function endTurn(): Promise<void> {
+  if (!selected || !proposedMove) return;
+  await submit({
+    type: "move",
+    player: game.turn,
+    from_q: selected.q,
+    from_r: selected.r,
+    to_q: proposedMove.q,
+    to_r: proposedMove.r,
+    count: selectedCount,
+  });
 }
 document.addEventListener("keydown", (event) => {
   if (event.target instanceof HTMLInputElement) return;
