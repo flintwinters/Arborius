@@ -150,7 +150,7 @@ function promptText(): string {
     if (proposedAction) return proposedActionText();
     const tile = game.reserves[game.turn].find((candidate) => candidate.id === selectedReserve);
     return pendingPlacement
-      ? `${tile?.name ?? "Tile"} previewed. Rotate it on the board, then confirm.`
+      ? `${tile?.name ?? "Tile"} ready. Rotate it on the board, then end the turn.`
       : `${tile?.name ?? "Tile"} ready. Choose a green marker to preview it.`;
   }
   return "Choose one of your stacks, or choose a tile from reserve.";
@@ -252,11 +252,9 @@ async function choose(coordinate: BoardCoordinate, count?: number): Promise<void
       return;
     }
     pendingPlacement = coordinate;
-    proposedAction = null;
     const legalFacings = legalPlacementFacings(coordinate);
     if (!legalFacings.includes(placementFacing) && legalFacings[0]) placementFacing = legalFacings[0];
-    notice = null;
-    render();
+    proposePlacement();
     return;
   }
   if (!selected) {
@@ -369,9 +367,22 @@ reserveNode.addEventListener("click", (event) => {
   notice = null;
   render();
 });
-async function handlePlacementControl(action: "left" | "confirm" | "right" | "end-turn" | "cancel"): Promise<void> {
+function proposePlacement(): void {
+  if (!pendingPlacement || !selectedReserve) return;
+  propose({
+    type: "place",
+    player: game.turn,
+    tile_id: selectedReserve,
+    q: pendingPlacement.q,
+    r: pendingPlacement.r,
+    facing: placementFacing,
+  });
+}
+
+async function handlePlacementControl(action: "left" | "right" | "end-turn" | "cancel"): Promise<void> {
   if (action === "cancel") {
     pendingPlacement = null;
+    proposedAction = null;
     render();
     return;
   }
@@ -380,24 +391,12 @@ async function handlePlacementControl(action: "left" | "confirm" | "right" | "en
     await endTurn();
     return;
   }
-  if (action === "confirm") {
-    propose({
-      type: "place",
-      player: game.turn,
-      tile_id: selectedReserve,
-      q: pendingPlacement.q,
-      r: pendingPlacement.r,
-      facing: placementFacing,
-    });
-    return;
-  }
   const legalFacings = legalPlacementFacings(pendingPlacement);
-  if (proposedAction?.type === "place") proposedAction = null;
   const currentIndex = legalFacings.indexOf(placementFacing);
   const step = action === "left" ? -1 : 1;
   const nextFacing = legalFacings[(currentIndex + step + legalFacings.length) % legalFacings.length];
   if (nextFacing) placementFacing = nextFacing;
-  render();
+  proposePlacement();
 }
 async function rotate(quarterTurns: -1 | 1): Promise<void> {
   if (!selected) {
@@ -451,7 +450,7 @@ document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") cancel();
   if (pendingPlacement && event.key.toLowerCase() === "q") void handlePlacementControl("left");
   if (pendingPlacement && event.key.toLowerCase() === "e") void handlePlacementControl("right");
-  if (pendingPlacement && event.key === "Enter") void handlePlacementControl("confirm");
+  if (proposedAction && event.key === "Enter") void endTurn();
 });
 gameApi.load().then((loaded) => {
   game = loaded;
