@@ -380,9 +380,12 @@ reserveNode.addEventListener("click", (event) => {
   const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-tile-id]");
   if (!button) return;
   selectedReserve = button.dataset.tileId ?? null;
-  pendingPlacement = null;
   selected = null;
   selectedCount = 0;
+  if (pendingPlacement) {
+    proposePlacement();
+    return;
+  }
   proposedAction = null;
   notice = null;
   render();
