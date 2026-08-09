@@ -198,6 +198,7 @@ function render(): void {
         tile: { ...placementTile, facing: placementFacing },
         canRotate: legalPlacementFacings(pendingPlacement).length > 1,
         canEndTurn: proposedAction?.type === "place",
+        actionControlsDisabled: busy || game.winner !== null,
       }
     : null);
   board.update(game);

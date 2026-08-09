@@ -20,6 +20,7 @@ export interface PlacementPreview {
   tile: Tile;
   canRotate: boolean;
   canEndTurn: boolean;
+  actionControlsDisabled: boolean;
 }
 
 export interface RotationPreview {
@@ -42,6 +43,20 @@ interface PopupDrag {
   startY: number;
   offsetX: number;
   offsetY: number;
+}
+
+interface PopupButton {
+  action: string;
+  label: string;
+  ariaLabel?: string;
+}
+
+interface PopupContent {
+  title: string;
+  cancel: PopupButton;
+  rotationButtons: PopupButton[];
+  bodyButtons?: PopupButton[];
+  footerButton: PopupButton;
 }
 
 const COLORS = {
@@ -298,32 +313,8 @@ export class BoardView {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.domElement.setAttribute("aria-label", "Interactive three-dimensional game board");
     this.host.append(this.renderer.domElement);
-    this.placementControls.className = "board-placement-controls";
-    this.placementControls.setAttribute("role", "group");
-    this.placementControls.setAttribute("aria-label", "Place tile");
-    this.placementControls.innerHTML = `<div class="popup-window-header popup-chrome" title="Drag to move"><span class="popup-window-title" data-placement-title>Place tile</span><button class="popup-window-close" data-placement-action="cancel" aria-label="Cancel placement preview">×</button></div><div class="popup-window-body"><div class="popup-rotation-controls"><button data-placement-action="left" aria-label="Rotate tile left">↶</button><button data-placement-action="right" aria-label="Rotate tile right">↷</button></div></div><div class="popup-window-footer"><button data-placement-action="end-turn" hidden>End turn</button></div>`;
-    this.placementControls.hidden = true;
-    this.enablePopupDragging(this.placementControls);
-    this.placementControls.addEventListener("click", (event) => {
-      event.stopPropagation();
-      const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-placement-action]");
-      const action = button?.dataset.placementAction as PlacementControlAction | undefined;
-      if (action) this.onPlacementControl(action);
-    });
-    this.host.append(this.placementControls);
-
-    this.selectionControls.className = "board-selection-controls";
-    this.selectionControls.setAttribute("role", "group");
-    this.selectionControls.setAttribute("aria-label", "Selected tile actions");
-    this.selectionControls.hidden = true;
-    this.enablePopupDragging(this.selectionControls);
-    this.selectionControls.addEventListener("click", (event) => {
-      event.stopPropagation();
-      const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-selection-action]");
-      const action = button?.dataset.selectionAction as SelectionControlAction | undefined;
-      if (action) this.onSelectionControl(action);
-    });
-    this.host.append(this.selectionControls);
+    this.initializePopup(this.placementControls, "board-placement-controls", "Place tile", "data-placement-action", this.onPlacementControl);
+    this.initializePopup(this.selectionControls, "board-selection-controls", "Selected tile actions", "data-selection-action", this.onSelectionControl);
 
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableDamping = false;
@@ -351,9 +342,7 @@ export class BoardView {
     element.addEventListener("pointerdown", (event) => {
       event.stopPropagation();
       if (event.button !== 0 || (event.target as HTMLElement).closest("button")) return;
-      const offset = element === this.placementControls
-        ? this.placementControlOffset
-        : this.selectionControlOffset;
+      const offset = this.popupOffset(element);
       this.popupDrag = {
         element,
         pointerId: event.pointerId,
@@ -366,9 +355,7 @@ export class BoardView {
     });
     element.addEventListener("pointermove", (event) => {
       if (!this.popupDrag || this.popupDrag.element !== element || this.popupDrag.pointerId !== event.pointerId) return;
-      const offset = element === this.placementControls
-        ? this.placementControlOffset
-        : this.selectionControlOffset;
+      const offset = this.popupOffset(element);
       offset.set(
         this.popupDrag.offsetX + event.clientX - this.popupDrag.startX,
         this.popupDrag.offsetY + event.clientY - this.popupDrag.startY,
@@ -383,6 +370,63 @@ export class BoardView {
     if (!this.popupDrag || this.popupDrag.element !== element || this.popupDrag.pointerId !== pointerId) return;
     this.popupDrag = null;
     if (element.hasPointerCapture(pointerId)) element.releasePointerCapture(pointerId);
+  }
+
+  private initializePopup<Action extends string>(
+    element: HTMLElement,
+    className: string,
+    label: string,
+    actionAttribute: string,
+    onAction: (action: Action) => void,
+  ): void {
+    element.className = className;
+    element.setAttribute("role", "group");
+    element.setAttribute("aria-label", label);
+    element.hidden = true;
+    this.enablePopupDragging(element);
+    element.addEventListener("click", (event) => {
+      event.stopPropagation();
+      const button = (event.target as HTMLElement).closest<HTMLButtonElement>(`[${actionAttribute}]`);
+      const action = button?.getAttribute(actionAttribute) as Action | null;
+      if (action) onAction(action);
+    });
+    this.host.append(element);
+  }
+
+  private popupOffset(element: HTMLElement): THREE.Vector2 {
+    return element === this.placementControls ? this.placementControlOffset : this.selectionControlOffset;
+  }
+
+  private createPopupButton(actionAttribute: string, button: PopupButton, className?: string): HTMLButtonElement {
+    const control = document.createElement("button");
+    if (className) control.className = className;
+    control.setAttribute(actionAttribute, button.action);
+    if (button.ariaLabel) control.setAttribute("aria-label", button.ariaLabel);
+    control.textContent = button.label;
+    return control;
+  }
+
+  private renderPopup(element: HTMLElement, actionAttribute: string, content: PopupContent): void {
+    const header = document.createElement("div");
+    header.className = "popup-window-header";
+    header.title = "Drag to move";
+    const title = document.createElement("span");
+    title.className = "popup-window-title";
+    title.textContent = content.title;
+    header.append(title, this.createPopupButton(actionAttribute, content.cancel, "popup-window-close"));
+
+    const body = document.createElement("div");
+    body.className = "popup-window-body";
+    const rotations = document.createElement("div");
+    rotations.className = "popup-rotation-controls";
+    content.rotationButtons.forEach((button) => rotations.append(this.createPopupButton(actionAttribute, button)));
+    body.append(rotations);
+    content.bodyButtons?.forEach((button) => body.append(this.createPopupButton(actionAttribute, button)));
+
+    const footer = document.createElement("div");
+    footer.className = "popup-window-footer";
+    footer.append(this.createPopupButton(actionAttribute, content.footerButton));
+    element.replaceChildren(header, body, footer);
   }
 
   setSelected(
@@ -437,12 +481,19 @@ export class BoardView {
     this.placementControls.hidden = this.placementPreview === null;
     if (!this.placementPreview) return;
 
+    this.renderPopup(this.placementControls, "data-placement-action", {
+      title: `Place ${this.placementPreview.tile.name}`,
+      cancel: { action: "cancel", label: "×", ariaLabel: "Cancel placement preview" },
+      rotationButtons: [
+        { action: "left", label: "↶", ariaLabel: "Rotate tile left" },
+        { action: "right", label: "↷", ariaLabel: "Rotate tile right" },
+      ],
+      footerButton: { action: "end-turn", label: "End turn" },
+    });
     this.placementControls.querySelectorAll<HTMLButtonElement>("[data-placement-action='left'], [data-placement-action='right']")
-      .forEach((button) => { button.disabled = !this.placementPreview?.canRotate; });
+      .forEach((button) => { button.disabled = this.placementPreview?.actionControlsDisabled || !this.placementPreview?.canRotate; });
     const endTurn = this.placementControls.querySelector<HTMLButtonElement>("[data-placement-action='end-turn']");
-    if (endTurn) endTurn.hidden = !this.placementPreview.canEndTurn;
-    const title = this.placementControls.querySelector<HTMLElement>("[data-placement-title]");
-    if (title) title.textContent = `Place ${this.placementPreview.tile.name}`;
+    if (endTurn) endTurn.disabled = this.placementPreview.actionControlsDisabled || !this.placementPreview.canEndTurn;
 
     const { coordinate, tile: tileState } = this.placementPreview;
     const destinationHeight = this.state?.board.find(
@@ -487,14 +538,26 @@ export class BoardView {
     const title = this.proposedMove
       ? `Move to ${this.proposedMove.q}, ${this.proposedMove.r} ready`
       : `${top?.name ?? "Stack"} · ${this.selectedCount} tile${this.selectedCount === 1 ? "" : "s"}`;
-    const endTurn = this.hasProposedAction ? `<div class="popup-window-footer"><button data-selection-action="end-turn">End turn</button></div>` : "";
-    const rotationControls = `<button data-selection-action="left" aria-label="Rotate tile left">↶</button><button data-selection-action="scope">Rotate ${rotationScope}</button><button data-selection-action="right" aria-label="Rotate tile right">↷</button>`;
-    this.selectionControls.innerHTML = `<div class="popup-window-header board-selection-title" title="Drag to move"><span class="popup-window-title">${title}</span><button class="popup-window-close" data-selection-action="cancel" aria-label="Clear selection">×</button></div><div class="popup-window-body"><div class="popup-rotation-controls">${rotationControls}</div><button data-selection-action="unplay">Return top tile</button></div>${endTurn}`;
+    this.renderPopup(this.selectionControls, "data-selection-action", {
+      title,
+      cancel: { action: "cancel", label: "×", ariaLabel: "Clear selection" },
+      rotationButtons: [
+        { action: "left", label: "↶", ariaLabel: "Rotate tile left" },
+        { action: "scope", label: `Rotate ${rotationScope}` },
+        { action: "right", label: "↷", ariaLabel: "Rotate tile right" },
+      ],
+      bodyButtons: [{ action: "unplay", label: "Return top tile" }],
+      footerButton: { action: "end-turn", label: "End turn" },
+    });
     this.selectionControls.querySelectorAll<HTMLButtonElement>("button").forEach((button) => {
       const isRotationControl = button.dataset.selectionAction === "left"
         || button.dataset.selectionAction === "right"
         || button.dataset.selectionAction === "scope";
-      button.disabled = this.actionControlsDisabled || (isRotationControl && !this.canRotate);
+      const isEndTurn = button.dataset.selectionAction === "end-turn";
+      const isCancel = button.dataset.selectionAction === "cancel";
+      button.disabled = !isCancel && (this.actionControlsDisabled
+        || (isRotationControl && !this.canRotate)
+        || (isEndTurn && !this.hasProposedAction));
     });
   }
 
