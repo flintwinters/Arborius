@@ -22,7 +22,7 @@ app.innerHTML = `
     <h2>Tiles</h2>
     <div id="reserve" class="reserve"></div>
     <output id="log" class="notice" aria-live="assertive"></output>
-    <div class="commands utility"><button id="cancel">Clear selection</button><button id="reset">New game</button><button id="end-turn" disabled>End turn</button></div>
+    <div class="commands utility"><button id="cancel">Clear selection</button><button id="reset">New game</button></div>
   </aside>
   <section id="game-over" class="game-over" role="dialog" aria-modal="true" aria-labelledby="game-over-title" hidden>
     <div class="game-over-card"><h2 id="game-over-title">Game over</h2><p id="game-over-message"></p><button id="play-again">New game</button></div>
@@ -163,7 +163,14 @@ function selectDefaultSetupTile(): void {
 }
 
 function render(): void {
-  board.setSelected(selected, selectedCount, rotateWholeStack, proposedMovePreview(), busy || game.winner !== null);
+  board.setSelected(
+    selected,
+    selectedCount,
+    rotateWholeStack,
+    proposedMovePreview(),
+    proposedAction !== null,
+    busy || game.winner !== null,
+  );
   board.setDestinations(destinations());
   const placementTile = game.reserves[game.turn].find((tile) => tile.id === selectedReserve);
   board.setPlacementPreview(pendingPlacement && placementTile
@@ -171,6 +178,7 @@ function render(): void {
         coordinate: pendingPlacement,
         tile: { ...placementTile, facing: placementFacing },
         canRotate: legalPlacementFacings(pendingPlacement).length > 1,
+        canEndTurn: proposedAction?.type === "place",
       }
     : null);
   board.update(game);
@@ -192,7 +200,6 @@ function render(): void {
     button.disabled = busy || (game.winner !== null && button.id !== "reset" && button.id !== "play-again");
   });
   requireElement<HTMLButtonElement>("#cancel").disabled = busy || (selected === null && selectedReserve === null);
-  requireElement<HTMLButtonElement>("#end-turn").disabled = busy || game.winner !== null || proposedAction === null;
 }
 
 async function submit(action: GameAction): Promise<void> {
@@ -245,6 +252,7 @@ async function choose(coordinate: BoardCoordinate, count?: number): Promise<void
       return;
     }
     pendingPlacement = coordinate;
+    proposedAction = null;
     const legalFacings = legalPlacementFacings(coordinate);
     if (!legalFacings.includes(placementFacing) && legalFacings[0]) placementFacing = legalFacings[0];
     notice = null;
@@ -350,7 +358,6 @@ async function reset(): Promise<void> {
 document.querySelector("#cancel")?.addEventListener("click", cancel);
 document.querySelector("#reset")?.addEventListener("click", () => void reset());
 document.querySelector("#play-again")?.addEventListener("click", () => void reset());
-document.querySelector("#end-turn")?.addEventListener("click", () => void endTurn());
 reserveNode.addEventListener("click", (event) => {
   const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-tile-id]");
   if (!button) return;
@@ -362,13 +369,17 @@ reserveNode.addEventListener("click", (event) => {
   notice = null;
   render();
 });
-async function handlePlacementControl(action: "left" | "confirm" | "right" | "cancel"): Promise<void> {
+async function handlePlacementControl(action: "left" | "confirm" | "right" | "end-turn" | "cancel"): Promise<void> {
   if (action === "cancel") {
     pendingPlacement = null;
     render();
     return;
   }
   if (!pendingPlacement || !selectedReserve) return;
+  if (action === "end-turn") {
+    await endTurn();
+    return;
+  }
   if (action === "confirm") {
     propose({
       type: "place",
@@ -381,6 +392,7 @@ async function handlePlacementControl(action: "left" | "confirm" | "right" | "ca
     return;
   }
   const legalFacings = legalPlacementFacings(pendingPlacement);
+  if (proposedAction?.type === "place") proposedAction = null;
   const currentIndex = legalFacings.indexOf(placementFacing);
   const step = action === "left" ? -1 : 1;
   const nextFacing = legalFacings[(currentIndex + step + legalFacings.length) % legalFacings.length];
@@ -416,6 +428,10 @@ async function handleSelectionControl(action: SelectionControlAction): Promise<v
   if (action === "scope") {
     rotateWholeStack = !rotateWholeStack;
     render();
+    return;
+  }
+  if (action === "end-turn") {
+    await endTurn();
     return;
   }
   if (action === "left" || action === "right") {

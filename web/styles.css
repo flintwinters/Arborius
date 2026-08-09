@@ -228,12 +228,6 @@ button:focus-visible { outline: 2px solid #b7e6f2; outline-offset: 2px; }
 .reserve button:nth-child(8) { --button-top: #79505d; --button-bottom: #573a45; }
 #cancel { --button-top: #814c4c; --button-bottom: #5e373b; }
 #reset { --button-top: #39766d; --button-bottom: #295650; }
-#end-turn { --button-top: #60783b; --button-bottom: #43552c; }
-#end-turn:disabled { --button-top: #59615e; --button-bottom: #3c4441; }
-.commands.utility { grid-template-areas: "cancel reset" ". end"; }
-.commands.utility #cancel { grid-area: cancel; }
-.commands.utility #reset { grid-area: reset; }
-.commands.utility #end-turn { grid-area: end; }
 
 .notice { display: block; min-height: 0; overflow-wrap: anywhere; }
 .notice:not(:empty) {
@@ -272,6 +266,14 @@ button:focus-visible { outline: 2px solid #b7e6f2; outline-offset: 2px; }
 .board-placement-controls button[data-placement-action="left"] { --button-top: #477486; --button-bottom: #315565; }
 .board-placement-controls button[data-placement-action="right"] { --button-top: #665a86; --button-bottom: #473f63; }
 .board-placement-controls button[data-placement-action="confirm"] {
+  --button-top: #60783b;
+  --button-bottom: #43552c;
+  border-color: #c6dd70 #263316 #263316 #c6dd70;
+  color: #e9f6a8;
+}
+.board-placement-controls button[data-placement-action="end-turn"],
+.board-selection-controls button[data-selection-action="end-turn"] {
+  grid-column: 1 / -1;
   --button-top: #60783b;
   --button-bottom: #43552c;
   border-color: #c6dd70 #263316 #263316 #c6dd70;

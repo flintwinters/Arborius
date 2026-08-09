@@ -12,13 +12,14 @@ export interface StackSelection extends BoardCoordinate {
   count: number;
 }
 
-export type PlacementControlAction = "left" | "confirm" | "right" | "cancel";
-export type SelectionControlAction = "left" | "right" | "scope" | "unplay" | "cancel";
+export type PlacementControlAction = "left" | "confirm" | "right" | "end-turn" | "cancel";
+export type SelectionControlAction = "left" | "right" | "scope" | "end-turn" | "unplay" | "cancel";
 
 export interface PlacementPreview {
   coordinate: BoardCoordinate;
   tile: Tile;
   canRotate: boolean;
+  canEndTurn: boolean;
 }
 
 interface PointerInteraction {
@@ -243,6 +244,7 @@ export class BoardView {
   private selectedCount = 0;
   private rotateWholeStack = false;
   private proposedMove: BoardCoordinate | null = null;
+  private hasProposedAction = false;
   private actionControlsDisabled = false;
   private hovered: StackSelection | null = null;
   private destinations: BoardCoordinate[] = [];
@@ -274,7 +276,7 @@ export class BoardView {
     this.placementControls.className = "board-placement-controls";
     this.placementControls.setAttribute("role", "group");
     this.placementControls.setAttribute("aria-label", "Place tile");
-    this.placementControls.innerHTML = `<button data-placement-action="left" aria-label="Rotate tile left">↶</button><button data-placement-action="confirm" aria-label="Confirm placement">Place</button><button data-placement-action="right" aria-label="Rotate tile right">↷</button><button data-placement-action="cancel" aria-label="Cancel placement preview">×</button>`;
+    this.placementControls.innerHTML = `<button data-placement-action="left" aria-label="Rotate tile left">↶</button><button data-placement-action="confirm" aria-label="Confirm placement">Place</button><button data-placement-action="right" aria-label="Rotate tile right">↷</button><button data-placement-action="end-turn" hidden>End turn</button><button data-placement-action="cancel" aria-label="Cancel placement preview">×</button>`;
     this.placementControls.hidden = true;
     this.placementControls.addEventListener("pointerdown", (event) => event.stopPropagation());
     this.placementControls.addEventListener("click", (event) => {
@@ -325,12 +327,14 @@ export class BoardView {
     count = 0,
     rotateWholeStack = false,
     proposedMove: BoardCoordinate | null = null,
+    hasProposedAction = false,
     actionControlsDisabled = false,
   ): void {
     this.selected = coordinate;
     this.selectedCount = count;
     this.rotateWholeStack = rotateWholeStack;
     this.proposedMove = proposedMove;
+    this.hasProposedAction = hasProposedAction;
     this.actionControlsDisabled = actionControlsDisabled;
     if (coordinate) this.setHovered(null);
   }
@@ -368,6 +372,8 @@ export class BoardView {
 
     this.placementControls.querySelectorAll<HTMLButtonElement>("[data-placement-action='left'], [data-placement-action='right']")
       .forEach((button) => { button.disabled = !this.placementPreview?.canRotate; });
+    const endTurn = this.placementControls.querySelector<HTMLButtonElement>("[data-placement-action='end-turn']");
+    if (endTurn) endTurn.hidden = !this.placementPreview.canEndTurn;
 
     const { coordinate, tile: tileState } = this.placementPreview;
     const destinationHeight = this.state?.board.find(
@@ -412,7 +418,8 @@ export class BoardView {
     const title = this.proposedMove
       ? `Move to ${this.proposedMove.q}, ${this.proposedMove.r} ready`
       : `${top?.name ?? "Stack"} · ${this.selectedCount} tile${this.selectedCount === 1 ? "" : "s"}`;
-    this.selectionControls.innerHTML = `<span class="board-selection-title">${title}</span><button data-selection-action="left" aria-label="Rotate tile left">↶</button><button data-selection-action="scope">Rotate ${rotationScope}</button><button data-selection-action="right" aria-label="Rotate tile right">↷</button><button data-selection-action="unplay">Return top tile</button><button data-selection-action="cancel" aria-label="Clear selection">×</button>`;
+    const endTurn = this.hasProposedAction ? `<button data-selection-action="end-turn">End turn</button>` : "";
+    this.selectionControls.innerHTML = `<span class="board-selection-title">${title}</span><button data-selection-action="left" aria-label="Rotate tile left">↶</button><button data-selection-action="scope">Rotate ${rotationScope}</button><button data-selection-action="right" aria-label="Rotate tile right">↷</button>${endTurn}<button data-selection-action="unplay">Return top tile</button><button data-selection-action="cancel" aria-label="Clear selection">×</button>`;
     this.selectionControls.querySelectorAll<HTMLButtonElement>("button").forEach((button) => {
       button.disabled = this.actionControlsDisabled;
     });
