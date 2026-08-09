@@ -55,10 +55,14 @@ function stackSurfaceY(height: number): number {
 function createTileGeometry(): THREE.BoxGeometry {
   const geometry = new THREE.BoxGeometry(TILE_WIDTH, TILE_HEIGHT, TILE_WIDTH);
   const positions = geometry.getAttribute("position");
+  const normals = geometry.getAttribute("normal");
   const shades: number[] = [];
   for (let index = 0; index < positions.count; index += 1) {
     const heightRatio = positions.getY(index) / TILE_HEIGHT + 0.5;
-    const shade = 0.94 + heightRatio * 0.06;
+    const normalY = normals.getY(index);
+    const planarGradient = ((positions.getX(index) - positions.getZ(index)) / TILE_WIDTH) * 0.007;
+    const sideGradient = (1 - Math.abs(normalY)) * heightRatio * 0.018;
+    const shade = 0.952 + normalY * 0.006 + planarGradient + sideGradient;
     shades.push(shade, shade, shade);
   }
   geometry.setAttribute("color", new THREE.Float32BufferAttribute(shades, 3));
