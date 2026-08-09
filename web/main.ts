@@ -1,6 +1,6 @@
 import "./styles.css";
 
-import { BoardView, type BoardCoordinate } from "./board";
+import { BoardView, type BoardCoordinate, type SelectionControlAction } from "./board";
 import {
   cellKey,
   gameApi,
@@ -21,10 +21,6 @@ app.innerHTML = `
     <output id="prompt" class="prompt" aria-live="polite"></output>
     <h2>Tiles</h2>
     <div id="reserve" class="reserve"></div>
-    <section id="selection-controls" hidden><h2 id="selection-title">Selected stack</h2>
-      <label>Tiles to move <input id="carry" type="number" min="1" value="1"></label>
-      <div class="commands"><button id="rotate-left">↶ Rotate</button><button id="rotate-right">Rotate ↷</button><button id="unplay">Return top tile</button><button id="scope">Rotate top</button></div>
-    </section>
     <output id="log" class="notice" aria-live="assertive"></output>
     <div class="commands utility"><button id="cancel">Clear selection</button><button id="reset">New game</button></div>
   </aside>`;
@@ -40,10 +36,7 @@ const stateNode = requireElement<HTMLElement>("#state");
 const reserveNode = requireElement<HTMLElement>("#reserve");
 const logNode = requireElement<HTMLOutputElement>("#log");
 const promptNode = requireElement<HTMLOutputElement>("#prompt");
-const carryNode = requireElement<HTMLInputElement>("#carry");
 const turnNode = requireElement<HTMLElement>("#turn");
-const selectionControlsNode = requireElement<HTMLElement>("#selection-controls");
-const selectionTitleNode = requireElement<HTMLElement>("#selection-title");
 
 let game: GameState;
 let selected: BoardCoordinate | null = null;
@@ -60,6 +53,7 @@ const board = new BoardView(
   (coordinate, count) => void choose(coordinate, count),
   (source, destination, count) => void move(source, destination, count),
   (action) => void handlePlacementControl(action),
+  (action) => void handleSelectionControl(action),
 );
 
 function stackAt(coordinate: BoardCoordinate) {
@@ -136,7 +130,7 @@ function selectDefaultSetupTile(): void {
 }
 
 function render(): void {
-  board.setSelected(selected, selectedCount);
+  board.setSelected(selected, selectedCount, rotateWholeStack, busy || game.winner !== null);
   board.setDestinations(destinations());
   const placementTile = game.reserves[game.turn].find((tile) => tile.id === selectedReserve);
   board.setPlacementPreview(pendingPlacement && placementTile
@@ -159,15 +153,10 @@ function render(): void {
   reserveNode.innerHTML = game.reserves[game.turn].map((tile) =>
     `<button data-tile-id="${tile.id}" aria-pressed="${selectedReserve === tile.id}">${tile.name}</button>`,
   ).join("");
-  selectionControlsNode.hidden = selected === null;
   document.querySelectorAll<HTMLButtonElement>("button").forEach((button) => {
     button.disabled = busy || (game.winner !== null && button.id !== "reset");
   });
   requireElement<HTMLButtonElement>("#cancel").disabled = busy || (selected === null && selectedReserve === null);
-  if (selected) {
-    const stack = stackAt(selected);
-    selectionTitleNode.textContent = `${stack.at(-1)?.name ?? "Stack"} · ${stack.length} tile${stack.length === 1 ? "" : "s"}`;
-  }
 }
 
 async function submit(action: GameAction): Promise<void> {
@@ -229,7 +218,6 @@ async function choose(coordinate: BoardCoordinate, count?: number): Promise<void
     if (target.at(-1)?.owner === game.turn) {
       selected = coordinate;
       selectedCount = count ?? 1;
-      carryNode.value = String(selectedCount);
       render();
     } else {
       notice = { kind: "error", text: target.length ? "That stack is controlled by your opponent." : "Choose one of your stacks or a reserve tile first." };
@@ -250,7 +238,7 @@ async function choose(coordinate: BoardCoordinate, count?: number): Promise<void
     from_r: selected.r,
     to_q: coordinate.q,
     to_r: coordinate.r,
-    count: selectedCount || Number(carryNode.value),
+    count: selectedCount,
   });
 }
 
@@ -345,10 +333,6 @@ async function handlePlacementControl(action: "left" | "confirm" | "right" | "ca
   if (nextFacing) placementFacing = nextFacing;
   render();
 }
-document.querySelector("#scope")?.addEventListener("click", () => {
-  rotateWholeStack = !rotateWholeStack;
-  requireElement<HTMLButtonElement>("#scope").textContent = `Rotate ${rotateWholeStack ? "stack" : "top"}`;
-});
 async function rotate(quarterTurns: -1 | 1): Promise<void> {
   if (!selected) {
     notice = { kind: "error", text: "Select one of your stacks first." };
@@ -364,23 +348,23 @@ async function rotate(quarterTurns: -1 | 1): Promise<void> {
     whole_stack: rotateWholeStack,
   });
 }
-document.querySelector("#rotate-left")?.addEventListener("click", () => void rotate(-1));
-document.querySelector("#rotate-right")?.addEventListener("click", () => void rotate(1));
-document.querySelector("#unplay")?.addEventListener("click", () => {
-  if (!selected) {
-    notice = { kind: "error", text: "Select one of your stacks first." };
+async function handleSelectionControl(action: SelectionControlAction): Promise<void> {
+  if (action === "cancel") {
+    cancel();
+    return;
+  }
+  if (action === "scope") {
+    rotateWholeStack = !rotateWholeStack;
     render();
     return;
   }
-  void submit({ type: "unplay", player: game.turn, q: selected.q, r: selected.r });
-});
-carryNode.addEventListener("change", () => {
+  if (action === "left" || action === "right") {
+    await rotate(action === "left" ? -1 : 1);
+    return;
+  }
   if (!selected) return;
-  const height = stackAt(selected).length;
-  selectedCount = Math.max(1, Math.min(Number(carryNode.value), height));
-  carryNode.value = String(selectedCount);
-  render();
-});
+  await submit({ type: "unplay", player: game.turn, q: selected.q, r: selected.r });
+}
 document.addEventListener("keydown", (event) => {
   if (event.target instanceof HTMLInputElement) return;
   if (event.key === "Escape") cancel();

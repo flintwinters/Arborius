@@ -13,6 +13,7 @@ export interface StackSelection extends BoardCoordinate {
 }
 
 export type PlacementControlAction = "left" | "confirm" | "right" | "cancel";
+export type SelectionControlAction = "left" | "right" | "scope" | "unplay" | "cancel";
 
 export interface PlacementPreview {
   coordinate: BoardCoordinate;
@@ -157,13 +158,16 @@ function tileIconTexture(name: string): THREE.CanvasTexture {
   return texture;
 }
 
-function createTileIcon(tile: Tile): THREE.Mesh {
+function createTileIcon(tile: Tile): THREE.Group {
   const icon = new THREE.Mesh(
     new THREE.PlaneGeometry(TILE_WIDTH * 0.42, TILE_WIDTH * 0.42),
     directionMarkerMaterial(tileIconTexture(tile.name)),
   );
-  icon.rotation.set(-Math.PI / 2, 0, FACING_ROTATION[tile.facing]);
-  return icon;
+  icon.rotation.x = -Math.PI / 2;
+  const tileIcon = new THREE.Group();
+  tileIcon.rotation.y = FACING_ROTATION[tile.facing];
+  tileIcon.add(icon);
+  return tileIcon;
 }
 
 const FACE_SPECS: Record<Facing, {
@@ -224,6 +228,7 @@ export class BoardView {
   private readonly hints = new THREE.Group();
   private readonly placementGhost = new THREE.Group();
   private readonly placementControls = document.createElement("div");
+  private readonly selectionControls = document.createElement("div");
   private readonly targets: THREE.Mesh[] = [];
   private readonly ground = new THREE.Mesh(
     new THREE.PlaneGeometry(1, 1),
@@ -232,6 +237,8 @@ export class BoardView {
   private field: THREE.LineSegments | null = null;
   private selected: BoardCoordinate | null = null;
   private selectedCount = 0;
+  private rotateWholeStack = false;
+  private actionControlsDisabled = false;
   private hovered: StackSelection | null = null;
   private destinations: BoardCoordinate[] = [];
   private placementPreview: PlacementPreview | null = null;
@@ -247,6 +254,7 @@ export class BoardView {
       count: number,
     ) => void,
     private readonly onPlacementControl: (action: PlacementControlAction) => void,
+    private readonly onSelectionControl: (action: SelectionControlAction) => void,
   ) {
     this.scene.background = new THREE.Color(0x171c1d);
     this.ground.rotation.x = -Math.PI / 2;
@@ -272,6 +280,19 @@ export class BoardView {
     });
     this.host.append(this.placementControls);
 
+    this.selectionControls.className = "board-selection-controls";
+    this.selectionControls.setAttribute("role", "group");
+    this.selectionControls.setAttribute("aria-label", "Selected tile actions");
+    this.selectionControls.hidden = true;
+    this.selectionControls.addEventListener("pointerdown", (event) => event.stopPropagation());
+    this.selectionControls.addEventListener("click", (event) => {
+      event.stopPropagation();
+      const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-selection-action]");
+      const action = button?.dataset.selectionAction as SelectionControlAction | undefined;
+      if (action) this.onSelectionControl(action);
+    });
+    this.host.append(this.selectionControls);
+
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableDamping = false;
     this.controls.enablePan = false;
@@ -294,9 +315,16 @@ export class BoardView {
     this.resize();
   }
 
-  setSelected(coordinate: BoardCoordinate | null, count = 0): void {
+  setSelected(
+    coordinate: BoardCoordinate | null,
+    count = 0,
+    rotateWholeStack = false,
+    actionControlsDisabled = false,
+  ): void {
     this.selected = coordinate;
     this.selectedCount = count;
+    this.rotateWholeStack = rotateWholeStack;
+    this.actionControlsDisabled = actionControlsDisabled;
     if (coordinate) this.setHovered(null);
   }
 
@@ -318,6 +346,7 @@ export class BoardView {
     this.updateHints();
     state.board.forEach((cell) => this.addCell(cell));
     this.updatePlacementPreview();
+    this.updateSelectionControls();
     if (this.selected && !state.board.some((cell) => cell.q === this.selected?.q && cell.r === this.selected?.r)) {
       this.addSelectionMarker(this.selected);
     }
@@ -355,6 +384,26 @@ export class BoardView {
     icon.position.y = arrow.position.y;
     this.placementGhost.add(arrow, icon);
     this.placementGhost.position.copy(worldPosition(coordinate.q, coordinate.r));
+  }
+
+  private updateSelectionControls(): void {
+    if (!this.selected) {
+      this.selectionControls.hidden = true;
+      return;
+    }
+    const stack = this.state?.board.find(
+      (cell) => cell.q === this.selected?.q && cell.r === this.selected?.r,
+    )?.stack;
+    if (!stack) {
+      this.selectionControls.hidden = true;
+      return;
+    }
+    const top = stack.at(-1);
+    this.selectionControls.hidden = false;
+    this.selectionControls.innerHTML = `<span class="board-selection-title">${top?.name ?? "Stack"} · ${this.selectedCount} tile${this.selectedCount === 1 ? "" : "s"}</span><button data-selection-action="left" aria-label="Rotate tile left">↶</button><button data-selection-action="scope">Rotate ${this.rotateWholeStack ? "stack" : "top"}</button><button data-selection-action="right" aria-label="Rotate tile right">↷</button><button data-selection-action="unplay">Return top tile</button><button data-selection-action="cancel" aria-label="Clear selection">×</button>`;
+    this.selectionControls.querySelectorAll<HTMLButtonElement>("button").forEach((button) => {
+      button.disabled = this.actionControlsDisabled;
+    });
   }
 
   private updateHints(): void {
@@ -660,7 +709,7 @@ export class BoardView {
   }
 
   private clearGroup(group: THREE.Group): void {
-    group.children.forEach((child) => {
+    group.traverse((child) => {
       if (!(child instanceof THREE.Mesh)) return;
       child.geometry.dispose();
       if (Array.isArray(child.material)) {
@@ -684,6 +733,7 @@ export class BoardView {
   private render(): void {
     this.renderer.render(this.scene, this.camera);
     this.positionPlacementControls();
+    this.positionSelectionControls();
   }
 
   private positionPlacementControls(): void {
@@ -692,12 +742,33 @@ export class BoardView {
     const destinationHeight = this.state?.board.find(
       (cell) => cell.q === coordinate.q && cell.r === coordinate.r,
     )?.stack.length ?? 0;
+    this.positionBoardControls(
+      this.placementControls,
+      coordinate,
+      0.58 + TILE_HEIGHT * destinationHeight,
+    );
+  }
+
+  private positionSelectionControls(): void {
+    if (!this.selected || this.selectionControls.hidden) return;
+    const stackHeight = this.state?.board.find(
+      (cell) => cell.q === this.selected?.q && cell.r === this.selected?.r,
+    )?.stack.length;
+    if (!stackHeight) return;
+    this.positionBoardControls(
+      this.selectionControls,
+      this.selected,
+      TILE_BASE_Y + TILE_HEIGHT * stackHeight + 0.16,
+    );
+  }
+
+  private positionBoardControls(element: HTMLElement, coordinate: BoardCoordinate, height: number): void {
     const projected = worldPosition(coordinate.q, coordinate.r);
-    projected.y = 0.58 + TILE_HEIGHT * destinationHeight;
+    projected.y = height;
     projected.project(this.camera);
     const visible = projected.z > -1 && projected.z < 1;
-    this.placementControls.style.visibility = visible ? "visible" : "hidden";
-    this.placementControls.style.left = `${(projected.x * 0.5 + 0.5) * this.host.clientWidth}px`;
-    this.placementControls.style.top = `${(-projected.y * 0.5 + 0.5) * this.host.clientHeight}px`;
+    element.style.visibility = visible ? "visible" : "hidden";
+    element.style.left = `${(projected.x * 0.5 + 0.5) * this.host.clientWidth}px`;
+    element.style.top = `${(-projected.y * 0.5 + 0.5) * this.host.clientHeight}px`;
   }
 }
