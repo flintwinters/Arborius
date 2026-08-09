@@ -263,6 +263,18 @@ button:focus-visible { outline: 2px solid #b7e6f2; outline-offset: 2px; }
   box-shadow: 2px 3px 0 rgba(0, 0, 0, .45);
 }
 .board-placement-controls button { min-width: 40px; min-height: 38px; padding: 5px 8px; font-weight: 700; }
+.popup-drag-handle, .board-selection-title {
+  cursor: grab;
+  user-select: none;
+}
+.popup-drag-handle {
+  align-self: center;
+  color: #9ed6e8;
+  font-weight: 800;
+  letter-spacing: -2px;
+  text-align: center;
+}
+.popup-drag-handle:active, .board-selection-title:active { cursor: grabbing; }
 .board-placement-controls button[data-placement-action="left"] { --button-top: #477486; --button-bottom: #315565; }
 .board-placement-controls button[data-placement-action="right"] { --button-top: #665a86; --button-bottom: #473f63; }
 .board-placement-controls button[data-placement-action="end-turn"],

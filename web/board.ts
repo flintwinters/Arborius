@@ -35,6 +35,15 @@ interface PointerInteraction {
   selection: StackSelection | null;
 }
 
+interface PopupDrag {
+  element: HTMLElement;
+  pointerId: number;
+  startX: number;
+  startY: number;
+  offsetX: number;
+  offsetY: number;
+}
+
 const COLORS = {
   amber: 0xf4c84a,
   teal: 0x68bfa6,
@@ -245,6 +254,8 @@ export class BoardView {
   private readonly placementGhost = new THREE.Group();
   private readonly placementControls = document.createElement("div");
   private readonly selectionControls = document.createElement("div");
+  private readonly placementControlOffset = new THREE.Vector2();
+  private readonly selectionControlOffset = new THREE.Vector2();
   private readonly targets: THREE.Mesh[] = [];
   private readonly ground = new THREE.Mesh(
     new THREE.PlaneGeometry(1, 1),
@@ -263,6 +274,7 @@ export class BoardView {
   private destinations: BoardCoordinate[] = [];
   private placementPreview: PlacementPreview | null = null;
   private interaction: PointerInteraction | null = null;
+  private popupDrag: PopupDrag | null = null;
   private state: GameState | null = null;
 
   constructor(
@@ -289,9 +301,9 @@ export class BoardView {
     this.placementControls.className = "board-placement-controls";
     this.placementControls.setAttribute("role", "group");
     this.placementControls.setAttribute("aria-label", "Place tile");
-    this.placementControls.innerHTML = `<button data-placement-action="left" aria-label="Rotate tile left">↶</button><button data-placement-action="right" aria-label="Rotate tile right">↷</button><button data-placement-action="end-turn" hidden>End turn</button><button data-placement-action="cancel" aria-label="Cancel placement preview">×</button>`;
+    this.placementControls.innerHTML = `<span class="popup-drag-handle" aria-label="Drag controls">⋮⋮</span><button data-placement-action="left" aria-label="Rotate tile left">↶</button><button data-placement-action="right" aria-label="Rotate tile right">↷</button><button data-placement-action="end-turn" hidden>End turn</button><button data-placement-action="cancel" aria-label="Cancel placement preview">×</button>`;
     this.placementControls.hidden = true;
-    this.placementControls.addEventListener("pointerdown", (event) => event.stopPropagation());
+    this.enablePopupDragging(this.placementControls);
     this.placementControls.addEventListener("click", (event) => {
       event.stopPropagation();
       const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-placement-action]");
@@ -304,7 +316,7 @@ export class BoardView {
     this.selectionControls.setAttribute("role", "group");
     this.selectionControls.setAttribute("aria-label", "Selected tile actions");
     this.selectionControls.hidden = true;
-    this.selectionControls.addEventListener("pointerdown", (event) => event.stopPropagation());
+    this.enablePopupDragging(this.selectionControls);
     this.selectionControls.addEventListener("click", (event) => {
       event.stopPropagation();
       const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-selection-action]");
@@ -333,6 +345,44 @@ export class BoardView {
     this.renderer.domElement.addEventListener("pointerup", (event) => this.handlePointerUp(event));
     new ResizeObserver(() => this.resize()).observe(this.host);
     this.resize();
+  }
+
+  private enablePopupDragging(element: HTMLElement): void {
+    element.addEventListener("pointerdown", (event) => {
+      event.stopPropagation();
+      if (event.button !== 0 || (event.target as HTMLElement).closest("button")) return;
+      const offset = element === this.placementControls
+        ? this.placementControlOffset
+        : this.selectionControlOffset;
+      this.popupDrag = {
+        element,
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        offsetX: offset.x,
+        offsetY: offset.y,
+      };
+      element.setPointerCapture(event.pointerId);
+    });
+    element.addEventListener("pointermove", (event) => {
+      if (!this.popupDrag || this.popupDrag.element !== element || this.popupDrag.pointerId !== event.pointerId) return;
+      const offset = element === this.placementControls
+        ? this.placementControlOffset
+        : this.selectionControlOffset;
+      offset.set(
+        this.popupDrag.offsetX + event.clientX - this.popupDrag.startX,
+        this.popupDrag.offsetY + event.clientY - this.popupDrag.startY,
+      );
+      this.render();
+    });
+    element.addEventListener("pointerup", (event) => this.stopPopupDrag(element, event.pointerId));
+    element.addEventListener("pointercancel", (event) => this.stopPopupDrag(element, event.pointerId));
+  }
+
+  private stopPopupDrag(element: HTMLElement, pointerId: number): void {
+    if (!this.popupDrag || this.popupDrag.element !== element || this.popupDrag.pointerId !== pointerId) return;
+    this.popupDrag = null;
+    if (element.hasPointerCapture(pointerId)) element.releasePointerCapture(pointerId);
   }
 
   setSelected(
@@ -828,7 +878,10 @@ export class BoardView {
     projected.project(this.camera);
     const visible = projected.z > -1 && projected.z < 1;
     element.style.visibility = visible ? "visible" : "hidden";
-    element.style.left = `${(projected.x * 0.5 + 0.5) * this.host.clientWidth}px`;
-    element.style.top = `${(-projected.y * 0.5 + 0.5) * this.host.clientHeight}px`;
+    const offset = element === this.placementControls
+      ? this.placementControlOffset
+      : this.selectionControlOffset;
+    element.style.left = `${(projected.x * 0.5 + 0.5) * this.host.clientWidth + offset.x}px`;
+    element.style.top = `${(-projected.y * 0.5 + 0.5) * this.host.clientHeight + offset.y}px`;
   }
 }
