@@ -487,7 +487,7 @@ export class BoardView {
     this.selectionControls.hidden = false;
     const rotationScope = this.rotateWholeStack ? "stack" : `${this.selectedCount} tile${this.selectedCount === 1 ? "" : "s"}`;
     const title = this.proposedMove
-      ? `Move to ${this.proposedMove.q}, ${this.proposedMove.r} ready`
+      ? "Move ready"
       : `${top?.name ?? "Stack"} · ${this.selectedCount} tile${this.selectedCount === 1 ? "" : "s"}`;
     this.renderPopup(this.selectionControls, "data-selection-action", {
       title,
