@@ -301,7 +301,7 @@ export class BoardView {
     this.placementControls.className = "board-placement-controls";
     this.placementControls.setAttribute("role", "group");
     this.placementControls.setAttribute("aria-label", "Place tile");
-    this.placementControls.innerHTML = `<span class="popup-drag-handle" aria-label="Drag controls">⋮⋮</span><button data-placement-action="left" aria-label="Rotate tile left">↶</button><button data-placement-action="right" aria-label="Rotate tile right">↷</button><button data-placement-action="end-turn" hidden>End turn</button><button data-placement-action="cancel" aria-label="Cancel placement preview">×</button>`;
+    this.placementControls.innerHTML = `<div class="popup-chrome" title="Drag to move"></div><button data-placement-action="left" aria-label="Rotate tile left">↶</button><button data-placement-action="right" aria-label="Rotate tile right">↷</button><button data-placement-action="end-turn" hidden>End turn</button><button data-placement-action="cancel" aria-label="Cancel placement preview">×</button>`;
     this.placementControls.hidden = true;
     this.enablePopupDragging(this.placementControls);
     this.placementControls.addEventListener("click", (event) => {
