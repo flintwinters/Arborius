@@ -46,7 +46,7 @@ const gameOverMessageNode = requireElement<HTMLElement>("#game-over-message");
 let game: GameState;
 let selected: BoardCoordinate | null = null;
 let selectedCount = 0;
-let proposedMove: BoardCoordinate | null = null;
+let proposedAction: GameAction | null = null;
 let selectedReserve: string | null = null;
 let pendingPlacement: BoardCoordinate | null = null;
 let placementFacing: Facing = "N";
@@ -116,11 +116,30 @@ function isDestination(coordinate: BoardCoordinate): boolean {
   );
 }
 
+function proposedMovePreview(): BoardCoordinate | null {
+  if (proposedAction?.type !== "move") return null;
+  return { q: proposedAction.to_q, r: proposedAction.to_r };
+}
+
+function proposedActionText(): string {
+  if (!proposedAction) return "";
+  if (proposedAction.type === "move") return `Move proposed. Press End turn to move ${proposedAction.count} tile${proposedAction.count === 1 ? "" : "s"} to the marked stack.`;
+  if (proposedAction.type === "rotate") return `Rotation proposed. Press End turn to rotate ${proposedAction.whole_stack ? "the stack" : `${proposedAction.count} tile${proposedAction.count === 1 ? "" : "s"}`}.`;
+  if (proposedAction.type === "place") return `Placement proposed. Press End turn to place the tile.`;
+  return "Return proposed. Press End turn to return the top tile.";
+}
+
+function propose(action: GameAction): void {
+  proposedAction = action;
+  notice = null;
+  render();
+}
+
 function promptText(): string {
   if (game.winner) return `${playerLabel(game.winner)} controls the canopy.`;
   if (busy) return "Resolving action…";
   if (selected) {
-    if (proposedMove) return `Move proposed. Press End turn to move ${selectedCount} tile${selectedCount === 1 ? "" : "s"} to the marked stack.`;
+    if (proposedAction) return proposedActionText();
     const top = stackAt(selected).at(-1);
     const destination = destinations()[0];
     return destination
@@ -128,6 +147,7 @@ function promptText(): string {
       : "Choose an action for this stack.";
   }
   if (selectedReserve) {
+    if (proposedAction) return proposedActionText();
     const tile = game.reserves[game.turn].find((candidate) => candidate.id === selectedReserve);
     return pendingPlacement
       ? `${tile?.name ?? "Tile"} previewed. Rotate it on the board, then confirm.`
@@ -143,7 +163,7 @@ function selectDefaultSetupTile(): void {
 }
 
 function render(): void {
-  board.setSelected(selected, selectedCount, rotateWholeStack, proposedMove, busy || game.winner !== null);
+  board.setSelected(selected, selectedCount, rotateWholeStack, proposedMovePreview(), busy || game.winner !== null);
   board.setDestinations(destinations());
   const placementTile = game.reserves[game.turn].find((tile) => tile.id === selectedReserve);
   board.setPlacementPreview(pendingPlacement && placementTile
@@ -172,7 +192,7 @@ function render(): void {
     button.disabled = busy || (game.winner !== null && button.id !== "reset" && button.id !== "play-again");
   });
   requireElement<HTMLButtonElement>("#cancel").disabled = busy || (selected === null && selectedReserve === null);
-  requireElement<HTMLButtonElement>("#end-turn").disabled = busy || game.winner !== null || proposedMove === null;
+  requireElement<HTMLButtonElement>("#end-turn").disabled = busy || game.winner !== null || proposedAction === null;
 }
 
 async function submit(action: GameAction): Promise<void> {
@@ -188,7 +208,7 @@ async function submit(action: GameAction): Promise<void> {
     notice = { kind: "success", text: actionResult(action) };
     selected = null;
     selectedCount = 0;
-    proposedMove = null;
+    proposedAction = null;
     selectedReserve = null;
     pendingPlacement = null;
     selectDefaultSetupTile();
@@ -211,7 +231,7 @@ function sentenceCase(message: string): string {
 function actionResult(action: GameAction): string {
   if (action.type === "place") return "Tile placed. Turn passed.";
   if (action.type === "move") return `${action.count} tile${action.count === 1 ? "" : "s"} moved. Turn passed.`;
-  if (action.type === "rotate") return `${action.whole_stack ? "Stack" : "Top tile"} rotated. Turn passed.`;
+  if (action.type === "rotate") return `${action.whole_stack ? "Stack" : `${action.count} tile${action.count === 1 ? "" : "s"}`} rotated. Turn passed.`;
   return "Top tile returned to reserve. Turn passed.";
 }
 
@@ -235,7 +255,7 @@ async function choose(coordinate: BoardCoordinate, count?: number): Promise<void
     if (target.at(-1)?.owner === game.turn) {
       selected = coordinate;
       selectedCount = count ?? 1;
-      proposedMove = null;
+      proposedAction = null;
       render();
     } else {
       notice = { kind: "error", text: target.length ? "That stack is controlled by your opponent." : "Choose one of your stacks or a reserve tile first." };
@@ -246,7 +266,7 @@ async function choose(coordinate: BoardCoordinate, count?: number): Promise<void
   if (cellKey(selected.q, selected.r) === cellKey(coordinate.q, coordinate.r)) {
     selected = null;
     selectedCount = 0;
-    proposedMove = null;
+    proposedAction = null;
     render();
     return;
   }
@@ -255,9 +275,15 @@ async function choose(coordinate: BoardCoordinate, count?: number): Promise<void
     render();
     return;
   }
-  proposedMove = coordinate;
-  notice = null;
-  render();
+  propose({
+    type: "move",
+    player: game.turn,
+    from_q: selected.q,
+    from_r: selected.r,
+    to_q: coordinate.q,
+    to_r: coordinate.r,
+    count: selectedCount,
+  });
 }
 
 async function move(
@@ -273,15 +299,26 @@ async function move(
   }
   selected = source;
   selectedCount = count;
-  proposedMove = isDestination(destination) ? destination : null;
-  notice = proposedMove ? null : { kind: "error", text: "Choose one of the green movement markers." };
-  render();
+  if (!isDestination(destination)) {
+    notice = { kind: "error", text: "Choose one of the green movement markers." };
+    render();
+    return;
+  }
+  propose({
+    type: "move",
+    player: game.turn,
+    from_q: source.q,
+    from_r: source.r,
+    to_q: destination.q,
+    to_r: destination.r,
+    count,
+  });
 }
 
 function cancel(): void {
   selected = null;
   selectedCount = 0;
-  proposedMove = null;
+  proposedAction = null;
   selectedReserve = null;
   pendingPlacement = null;
   notice = null;
@@ -297,7 +334,7 @@ async function reset(): Promise<void> {
     game = await gameApi.reset();
     selected = null;
     selectedCount = 0;
-    proposedMove = null;
+    proposedAction = null;
     selectedReserve = null;
     pendingPlacement = null;
     selectDefaultSetupTile();
@@ -321,7 +358,7 @@ reserveNode.addEventListener("click", (event) => {
   pendingPlacement = null;
   selected = null;
   selectedCount = 0;
-  proposedMove = null;
+  proposedAction = null;
   notice = null;
   render();
 });
@@ -333,7 +370,7 @@ async function handlePlacementControl(action: "left" | "confirm" | "right" | "ca
   }
   if (!pendingPlacement || !selectedReserve) return;
   if (action === "confirm") {
-    await submit({
+    propose({
       type: "place",
       player: game.turn,
       tile_id: selectedReserve,
@@ -356,7 +393,7 @@ async function rotate(quarterTurns: -1 | 1): Promise<void> {
     render();
     return;
   }
-  await submit({
+  propose({
     type: "rotate",
     player: game.turn,
     q: selected.q,
@@ -368,8 +405,8 @@ async function rotate(quarterTurns: -1 | 1): Promise<void> {
 }
 async function handleSelectionControl(action: SelectionControlAction): Promise<void> {
   if (action === "cancel") {
-    if (proposedMove) {
-      proposedMove = null;
+    if (proposedAction) {
+      proposedAction = null;
       render();
       return;
     }
@@ -386,20 +423,12 @@ async function handleSelectionControl(action: SelectionControlAction): Promise<v
     return;
   }
   if (!selected) return;
-  await submit({ type: "unplay", player: game.turn, q: selected.q, r: selected.r });
+  propose({ type: "unplay", player: game.turn, q: selected.q, r: selected.r });
 }
 
 async function endTurn(): Promise<void> {
-  if (!selected || !proposedMove) return;
-  await submit({
-    type: "move",
-    player: game.turn,
-    from_q: selected.q,
-    from_r: selected.r,
-    to_q: proposedMove.q,
-    to_r: proposedMove.r,
-    count: selectedCount,
-  });
+  if (!proposedAction) return;
+  await submit(proposedAction);
 }
 document.addEventListener("keydown", (event) => {
   if (event.target instanceof HTMLInputElement) return;
