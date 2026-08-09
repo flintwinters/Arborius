@@ -280,8 +280,17 @@ button:focus-visible { outline: 2px solid #b7e6f2; outline-offset: 2px; }
 .board-selection-controls button[data-selection-action="left"] { --button-top: #477486; --button-bottom: #315565; }
 .board-selection-controls button[data-selection-action="right"] { --button-top: #665a86; --button-bottom: #473f63; }
 .board-selection-controls button[data-selection-action="scope"] { --button-top: #73567d; --button-bottom: #513d5b; }
+.board-selection-controls button[data-selection-action="move"],
 .board-selection-controls button[data-selection-action="unplay"] {
   grid-column: 1 / -1;
+}
+.board-selection-controls button[data-selection-action="move"] {
+  --button-top: #60783b;
+  --button-bottom: #43552c;
+  border-color: #c6dd70 #263316 #263316 #c6dd70;
+  color: #e9f6a8;
+}
+.board-selection-controls button[data-selection-action="unplay"] {
   --button-top: #806040;
   --button-bottom: #5c432f;
 }

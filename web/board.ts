@@ -13,7 +13,7 @@ export interface StackSelection extends BoardCoordinate {
 }
 
 export type PlacementControlAction = "left" | "confirm" | "right" | "cancel";
-export type SelectionControlAction = "left" | "right" | "scope" | "unplay" | "cancel";
+export type SelectionControlAction = "left" | "right" | "scope" | "move" | "unplay" | "cancel";
 
 export interface PlacementPreview {
   coordinate: BoardCoordinate;
@@ -238,6 +238,7 @@ export class BoardView {
   private selected: BoardCoordinate | null = null;
   private selectedCount = 0;
   private rotateWholeStack = false;
+  private proposedMove: BoardCoordinate | null = null;
   private actionControlsDisabled = false;
   private hovered: StackSelection | null = null;
   private destinations: BoardCoordinate[] = [];
@@ -319,11 +320,13 @@ export class BoardView {
     coordinate: BoardCoordinate | null,
     count = 0,
     rotateWholeStack = false,
+    proposedMove: BoardCoordinate | null = null,
     actionControlsDisabled = false,
   ): void {
     this.selected = coordinate;
     this.selectedCount = count;
     this.rotateWholeStack = rotateWholeStack;
+    this.proposedMove = proposedMove;
     this.actionControlsDisabled = actionControlsDisabled;
     if (coordinate) this.setHovered(null);
   }
@@ -400,7 +403,11 @@ export class BoardView {
     }
     const top = stack.at(-1);
     this.selectionControls.hidden = false;
-    this.selectionControls.innerHTML = `<span class="board-selection-title">${top?.name ?? "Stack"} · ${this.selectedCount} tile${this.selectedCount === 1 ? "" : "s"}</span><button data-selection-action="left" aria-label="Rotate tile left">↶</button><button data-selection-action="scope">Rotate ${this.rotateWholeStack ? "stack" : "top"}</button><button data-selection-action="right" aria-label="Rotate tile right">↷</button><button data-selection-action="unplay">Return top tile</button><button data-selection-action="cancel" aria-label="Clear selection">×</button>`;
+    const rotationScope = this.rotateWholeStack ? "stack" : `${this.selectedCount} tile${this.selectedCount === 1 ? "" : "s"}`;
+    const moveConfirmation = this.proposedMove
+      ? `<button data-selection-action="move">Move to ${this.proposedMove.q}, ${this.proposedMove.r}</button>`
+      : "";
+    this.selectionControls.innerHTML = `<span class="board-selection-title">${top?.name ?? "Stack"} · ${this.selectedCount} tile${this.selectedCount === 1 ? "" : "s"}</span><button data-selection-action="left" aria-label="Rotate tile left">↶</button><button data-selection-action="scope">Rotate ${rotationScope}</button><button data-selection-action="right" aria-label="Rotate tile right">↷</button>${moveConfirmation}<button data-selection-action="unplay">Return top tile</button><button data-selection-action="cancel" aria-label="Clear selection">×</button>`;
     this.selectionControls.querySelectorAll<HTMLButtonElement>("button").forEach((button) => {
       button.disabled = this.actionControlsDisabled;
     });

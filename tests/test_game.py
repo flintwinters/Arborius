@@ -240,7 +240,7 @@ def test_move_requires_orthogonal_adjacency_control_and_valid_count() -> None:
         game.apply(Player.AMBER, MoveAction((0, 0), (1, 0), 0))
 
 
-def test_rotate_top_or_whole_stack_preserves_order() -> None:
+def test_rotate_selected_tiles_or_whole_stack_preserves_order() -> None:
     lower = tile("teal-horse", Player.TEAL, Facing.NORTH)
     upper = tile("amber-horse", Player.AMBER, Facing.EAST)
     game = Game(
@@ -254,9 +254,13 @@ def test_rotate_top_or_whole_stack_preserves_order() -> None:
     assert [item.facing for item in game.board[(0, 0)]] == [Facing.NORTH, Facing.SOUTH]
 
     game.turn = Player.AMBER
+    game.apply(Player.AMBER, RotateAction(0, 0, -1, count=2))
+    assert [item.facing for item in game.board[(0, 0)]] == [Facing.WEST, Facing.EAST]
+
+    game.turn = Player.AMBER
     game.apply(Player.AMBER, RotateAction(0, 0, -1, whole_stack=True))
     assert [item.id for item in game.board[(0, 0)]] == ["teal-horse", "amber-horse"]
-    assert [item.facing for item in game.board[(0, 0)]] == [Facing.WEST, Facing.EAST]
+    assert [item.facing for item in game.board[(0, 0)]] == [Facing.SOUTH, Facing.NORTH]
 
 
 def test_rotate_rejects_frozen_target_non_control_and_non_quarter_turn() -> None:
@@ -265,6 +269,8 @@ def test_rotate_rejects_frozen_target_non_control_and_non_quarter_turn() -> None
         game.apply(Player.AMBER, RotateAction(0, 0, 1))
     with pytest.raises(GameRuleError, match="exactly"):
         game.apply(Player.AMBER, RotateAction(0, 0, 2))
+    with pytest.raises(GameRuleError, match="count"):
+        game.apply(Player.AMBER, RotateAction(0, 0, 1, count=2))
 
 
 def test_unplay_returns_top_tile_when_eight_neighbor_connectivity_remains() -> None:

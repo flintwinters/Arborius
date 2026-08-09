@@ -104,6 +104,7 @@ class RotateAction:
     r: int
     quarter_turns: int
     whole_stack: bool = False
+    count: int = 1
 
 
 @dataclass(frozen=True, slots=True)
@@ -294,7 +295,9 @@ class Game:
             raise GameRuleError("the rotation cell is empty")
         if stack[-1].owner is not player:
             raise GameRuleError("the stack is not controlled by this player")
-        targets = stack if action.whole_stack else stack[-1:]
+        if action.count < 1 or action.count > len(stack):
+            raise GameRuleError("rotation count must select tiles from the controlled stack")
+        targets = stack if action.whole_stack else stack[-action.count :]
         if any(tile.frozen for tile in targets):
             raise GameRuleError("a frozen tile cannot be rotated")
         rotated = [

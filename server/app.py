@@ -54,6 +54,7 @@ class RotateRequest(BaseModel):
     r: int
     quarter_turns: int
     whole_stack: bool = False
+    count: int = 1
 
 
 class UnplayRequest(BaseModel):
@@ -96,7 +97,13 @@ async def take_action(request: ActionRequest) -> dict[str, object]:
             request.count,
         )
     elif isinstance(request, RotateRequest):
-        action = RotateAction(request.q, request.r, request.quarter_turns, request.whole_stack)
+        action = RotateAction(
+            request.q,
+            request.r,
+            request.quarter_turns,
+            request.whole_stack,
+            request.count,
+        )
     else:
         action = UnplayAction(request.q, request.r)
     try:

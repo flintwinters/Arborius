@@ -41,7 +41,15 @@ export type GameAction =
       to_r: number;
       count: number;
     }
-  | { type: "rotate"; player: Player; q: number; r: number; quarter_turns: -1 | 1; whole_stack: boolean }
+  | {
+      type: "rotate";
+      player: Player;
+      q: number;
+      r: number;
+      quarter_turns: -1 | 1;
+      whole_stack: boolean;
+      count: number;
+    }
   | { type: "unplay"; player: Player; q: number; r: number };
 
 async function request(path: string, init?: RequestInit): Promise<GameState> {
