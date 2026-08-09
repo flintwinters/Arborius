@@ -301,7 +301,7 @@ export class BoardView {
     this.placementControls.className = "board-placement-controls";
     this.placementControls.setAttribute("role", "group");
     this.placementControls.setAttribute("aria-label", "Place tile");
-    this.placementControls.innerHTML = `<div class="popup-chrome" title="Drag to move"></div><button data-placement-action="left" aria-label="Rotate tile left">↶</button><button data-placement-action="right" aria-label="Rotate tile right">↷</button><button data-placement-action="end-turn" hidden>End turn</button><button data-placement-action="cancel" aria-label="Cancel placement preview">×</button>`;
+    this.placementControls.innerHTML = `<div class="popup-window-header popup-chrome" title="Drag to move"><span class="popup-window-title" data-placement-title>Place tile</span><button class="popup-window-close" data-placement-action="cancel" aria-label="Cancel placement preview">×</button></div><div class="popup-window-body"><div class="popup-rotation-controls"><button data-placement-action="left" aria-label="Rotate tile left">↶</button><button data-placement-action="right" aria-label="Rotate tile right">↷</button></div></div><div class="popup-window-footer"><button data-placement-action="end-turn" hidden>End turn</button></div>`;
     this.placementControls.hidden = true;
     this.enablePopupDragging(this.placementControls);
     this.placementControls.addEventListener("click", (event) => {
@@ -441,6 +441,8 @@ export class BoardView {
       .forEach((button) => { button.disabled = !this.placementPreview?.canRotate; });
     const endTurn = this.placementControls.querySelector<HTMLButtonElement>("[data-placement-action='end-turn']");
     if (endTurn) endTurn.hidden = !this.placementPreview.canEndTurn;
+    const title = this.placementControls.querySelector<HTMLElement>("[data-placement-title]");
+    if (title) title.textContent = `Place ${this.placementPreview.tile.name}`;
 
     const { coordinate, tile: tileState } = this.placementPreview;
     const destinationHeight = this.state?.board.find(
@@ -485,9 +487,9 @@ export class BoardView {
     const title = this.proposedMove
       ? `Move to ${this.proposedMove.q}, ${this.proposedMove.r} ready`
       : `${top?.name ?? "Stack"} · ${this.selectedCount} tile${this.selectedCount === 1 ? "" : "s"}`;
-    const endTurn = this.hasProposedAction ? `<button data-selection-action="end-turn">End turn</button>` : "";
+    const endTurn = this.hasProposedAction ? `<div class="popup-window-footer"><button data-selection-action="end-turn">End turn</button></div>` : "";
     const rotationControls = `<button data-selection-action="left" aria-label="Rotate tile left">↶</button><button data-selection-action="scope">Rotate ${rotationScope}</button><button data-selection-action="right" aria-label="Rotate tile right">↷</button>`;
-    this.selectionControls.innerHTML = `<span class="board-selection-title">${title}</span>${rotationControls}${endTurn}<button data-selection-action="unplay">Return top tile</button><button data-selection-action="cancel" aria-label="Clear selection">×</button>`;
+    this.selectionControls.innerHTML = `<div class="popup-window-header board-selection-title" title="Drag to move"><span class="popup-window-title">${title}</span><button class="popup-window-close" data-selection-action="cancel" aria-label="Clear selection">×</button></div><div class="popup-window-body"><div class="popup-rotation-controls">${rotationControls}</div><button data-selection-action="unplay">Return top tile</button></div>${endTurn}`;
     this.selectionControls.querySelectorAll<HTMLButtonElement>("button").forEach((button) => {
       const isRotationControl = button.dataset.selectionAction === "left"
         || button.dataset.selectionAction === "right"
