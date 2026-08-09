@@ -133,19 +133,19 @@ function tileIconTexture(name: string): THREE.CanvasTexture {
     context.lineTo(64, 101); context.lineTo(42, 80); context.lineTo(34, 42);
     context.closePath();
   } else if (name === "demon") {
-    context.moveTo(31, 36); context.quadraticCurveTo(36, 68, 64, 92);
-    context.quadraticCurveTo(92, 68, 97, 36);
-    context.moveTo(42, 74); context.lineTo(52, 64);
-    context.moveTo(86, 74); context.lineTo(76, 64);
+    context.arc(64, 67, 27, Math.PI, 0);
+    context.moveTo(37, 66); context.lineTo(28, 42); context.lineTo(45, 51);
+    context.moveTo(91, 66); context.lineTo(100, 42); context.lineTo(83, 51);
+    context.moveTo(37, 67); context.lineTo(42, 93); context.lineTo(86, 93); context.lineTo(91, 67);
   } else if (name === "sword") {
     context.moveTo(35, 95); context.lineTo(89, 31);
     context.moveTo(73, 31); context.lineTo(91, 29); context.lineTo(89, 47);
     context.moveTo(38, 72); context.lineTo(57, 89);
   } else if (name === "viking") {
-    context.arc(64, 67, 27, Math.PI, 0);
-    context.moveTo(37, 66); context.lineTo(28, 42); context.lineTo(45, 51);
-    context.moveTo(91, 66); context.lineTo(100, 42); context.lineTo(83, 51);
-    context.moveTo(37, 67); context.lineTo(42, 93); context.lineTo(86, 93); context.lineTo(91, 67);
+    context.moveTo(31, 36); context.quadraticCurveTo(36, 68, 64, 92);
+    context.quadraticCurveTo(92, 68, 97, 36);
+    context.moveTo(42, 74); context.lineTo(52, 64);
+    context.moveTo(86, 74); context.lineTo(76, 64);
   } else {
     context.arc(64, 64, 32, 0, Math.PI * 1.7);
     context.arc(64, 64, 17, Math.PI * 1.7, Math.PI * 0.25, true);
