@@ -72,6 +72,42 @@ header span {
 #board canvas.selecting-stack { cursor: pointer; }
 #board canvas:active { cursor: grabbing; }
 
+.game-over {
+  position: fixed;
+  z-index: 5;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(28, 12, 14, .62);
+}
+.game-over-card {
+  width: min(360px, 100%);
+  padding: 7px;
+  border: 2px solid #ffaaa0;
+  border-radius: 6px;
+  background: linear-gradient(to bottom, #783d42, #48272b);
+  box-shadow: 0 12px 34px rgba(0, 0, 0, .6), inset 0 1px #b96968;
+  color: #ffe0d7;
+  text-align: center;
+}
+.game-over-card h2 {
+  margin: 0;
+  padding: 9px 12px;
+  border: 0;
+  border-bottom: 1px solid #b96968;
+  color: #fff3dd;
+  font-size: 20px;
+  text-shadow: 1px 1px #331619;
+}
+.game-over-card p { margin: 18px 12px; font-size: 18px; font-weight: 800; }
+.game-over-card button {
+  width: calc(100% - 16px);
+  margin: 0 8px 8px;
+  --button-top: #8b4a4d;
+  --button-bottom: #613337;
+}
+
 .intel {
   display: flex;
   flex-direction: column;

@@ -23,7 +23,10 @@ app.innerHTML = `
     <div id="reserve" class="reserve"></div>
     <output id="log" class="notice" aria-live="assertive"></output>
     <div class="commands utility"><button id="cancel">Clear selection</button><button id="reset">New game</button><button id="end-turn" disabled>End turn</button></div>
-  </aside>`;
+  </aside>
+  <section id="game-over" class="game-over" role="dialog" aria-modal="true" aria-labelledby="game-over-title" hidden>
+    <div class="game-over-card"><h2 id="game-over-title">Game over</h2><p id="game-over-message"></p><button id="play-again">New game</button></div>
+  </section>`;
 
 function requireElement<T extends Element>(selector: string): T {
   const element = document.querySelector<T>(selector);
@@ -37,6 +40,8 @@ const reserveNode = requireElement<HTMLElement>("#reserve");
 const logNode = requireElement<HTMLOutputElement>("#log");
 const promptNode = requireElement<HTMLOutputElement>("#prompt");
 const turnNode = requireElement<HTMLElement>("#turn");
+const gameOverNode = requireElement<HTMLElement>("#game-over");
+const gameOverMessageNode = requireElement<HTMLElement>("#game-over-message");
 
 let game: GameState;
 let selected: BoardCoordinate | null = null;
@@ -161,8 +166,10 @@ function render(): void {
   reserveNode.innerHTML = game.reserves[game.turn].map((tile) =>
     `<button data-tile-id="${tile.id}" aria-pressed="${selectedReserve === tile.id}">${tile.name}</button>`,
   ).join("");
+  gameOverNode.hidden = game.winner === null;
+  gameOverMessageNode.textContent = game.winner ? `${playerLabel(game.winner)} wins.` : "";
   document.querySelectorAll<HTMLButtonElement>("button").forEach((button) => {
-    button.disabled = busy || (game.winner !== null && button.id !== "reset");
+    button.disabled = busy || (game.winner !== null && button.id !== "reset" && button.id !== "play-again");
   });
   requireElement<HTMLButtonElement>("#cancel").disabled = busy || (selected === null && selectedReserve === null);
   requireElement<HTMLButtonElement>("#end-turn").disabled = busy || game.winner !== null || proposedMove === null;
@@ -305,6 +312,7 @@ async function reset(): Promise<void> {
 
 document.querySelector("#cancel")?.addEventListener("click", cancel);
 document.querySelector("#reset")?.addEventListener("click", () => void reset());
+document.querySelector("#play-again")?.addEventListener("click", () => void reset());
 document.querySelector("#end-turn")?.addEventListener("click", () => void endTurn());
 reserveNode.addEventListener("click", (event) => {
   const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-tile-id]");
