@@ -254,6 +254,7 @@ export class BoardView {
   private selected: BoardCoordinate | null = null;
   private selectedCount = 0;
   private rotateWholeStack = false;
+  private canRotate = false;
   private proposedMove: BoardCoordinate | null = null;
   private proposedRotation: RotationPreview | null = null;
   private hasProposedAction = false;
@@ -338,6 +339,7 @@ export class BoardView {
     coordinate: BoardCoordinate | null,
     count = 0,
     rotateWholeStack = false,
+    canRotate = false,
     proposedMove: BoardCoordinate | null = null,
     proposedRotation: RotationPreview | null = null,
     hasProposedAction = false,
@@ -346,6 +348,7 @@ export class BoardView {
     this.selected = coordinate;
     this.selectedCount = count;
     this.rotateWholeStack = rotateWholeStack;
+    this.canRotate = canRotate;
     this.proposedMove = proposedMove;
     this.proposedRotation = proposedRotation;
     this.hasProposedAction = hasProposedAction;
@@ -433,7 +436,10 @@ export class BoardView {
       ? `Move to ${this.proposedMove.q}, ${this.proposedMove.r} ready`
       : `${top?.name ?? "Stack"} · ${this.selectedCount} tile${this.selectedCount === 1 ? "" : "s"}`;
     const endTurn = this.hasProposedAction ? `<button data-selection-action="end-turn">End turn</button>` : "";
-    this.selectionControls.innerHTML = `<span class="board-selection-title">${title}</span><button data-selection-action="left" aria-label="Rotate tile left">↶</button><button data-selection-action="scope">Rotate ${rotationScope}</button><button data-selection-action="right" aria-label="Rotate tile right">↷</button>${endTurn}<button data-selection-action="unplay">Return top tile</button><button data-selection-action="cancel" aria-label="Clear selection">×</button>`;
+    const rotationControls = this.canRotate
+      ? `<button data-selection-action="left" aria-label="Rotate tile left">↶</button><button data-selection-action="scope">Rotate ${rotationScope}</button><button data-selection-action="right" aria-label="Rotate tile right">↷</button>`
+      : "";
+    this.selectionControls.innerHTML = `<span class="board-selection-title">${title}</span>${rotationControls}${endTurn}<button data-selection-action="unplay">Return top tile</button><button data-selection-action="cancel" aria-label="Clear selection">×</button>`;
     this.selectionControls.querySelectorAll<HTMLButtonElement>("button").forEach((button) => {
       button.disabled = this.actionControlsDisabled;
     });

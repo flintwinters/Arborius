@@ -66,6 +66,13 @@ function stackAt(coordinate: BoardCoordinate) {
   return game.board.find((cell) => cell.q === coordinate.q && cell.r === coordinate.r)?.stack ?? [];
 }
 
+function canRotateSelection(): boolean {
+  if (!selected) return false;
+  const stack = stackAt(selected);
+  const targets = rotateWholeStack ? stack : stack.slice(-selectedCount);
+  return stack.at(-1)?.owner === game.turn && targets.length > 0 && targets.every((tile) => !tile.frozen);
+}
+
 const facingVector: Record<Facing, BoardCoordinate> = {
   N: { q: 0, r: -1 }, E: { q: 1, r: 0 }, S: { q: 0, r: 1 }, W: { q: -1, r: 0 },
 };
@@ -177,6 +184,7 @@ function render(): void {
     selected,
     selectedCount,
     rotateWholeStack,
+    canRotateSelection(),
     proposedMovePreview(),
     proposedRotationPreview(),
     proposedAction !== null,
@@ -272,6 +280,7 @@ async function choose(coordinate: BoardCoordinate, count?: number): Promise<void
     if (target.at(-1)?.owner === game.turn) {
       selected = coordinate;
       selectedCount = count ?? 1;
+      rotateWholeStack = false;
       proposedAction = null;
       render();
     } else {
