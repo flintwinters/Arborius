@@ -162,7 +162,7 @@ function createTileIcon(tile: Tile): THREE.Mesh {
     new THREE.PlaneGeometry(TILE_WIDTH * 0.42, TILE_WIDTH * 0.42),
     directionMarkerMaterial(tileIconTexture(tile.name)),
   );
-  icon.rotation.x = -Math.PI / 2;
+  icon.rotation.set(-Math.PI / 2, 0, FACING_ROTATION[tile.facing]);
   return icon;
 }
 
